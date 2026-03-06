@@ -8,6 +8,17 @@ A tool that extracts valuable context from GitHub PR comments and organizes it i
 
 Preserve and make discoverable the architectural decisions, code patterns, gotchas, and domain knowledge that naturally emerge in PR discussions but typically get lost in closed PR threads.
 
+## Current Milestone: v1.0 MVP
+
+**Goal:** Build a working CLI tool that extracts PR comments from a GitHub repository, classifies them with Claude AI, and generates an organized markdown knowledge base.
+
+**Target features:**
+- GitHub PR comment extraction with rate-limit handling and local caching
+- Claude-powered comment classification (architecture decisions, code patterns, gotchas, domain knowledge)
+- Markdown KB generation with YAML frontmatter and index file
+- CLI interface with extract / classify / generate commands
+- GitHub Action for automated extraction
+
 ## Requirements
 
 ### Validated
@@ -61,4 +72,4 @@ Preserve and make discoverable the architectural decisions, code patterns, gotch
 | Single repo scope for v1 | Simpler to build and test, can expand later if needed | — Pending |
 
 ---
-*Last updated: 2026-02-13 after initialization*
+*Last updated: 2026-03-07 after milestone v1.0 started*
