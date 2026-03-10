@@ -34,7 +34,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. `.env.example` lists every required environment variable with a description of what each is for
   4. Missing required environment variable causes an immediate, descriptive error rather than a cryptic downstream failure
   5. Tests covering this phase's components pass (mocked external APIs where applicable)
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 01-01-PLAN.md — pyproject.toml scaffold, package skeleton, stubs, .env.example, config.py with pydantic-settings validation, smoke test
 
 ### Phase 2: GitHub Extraction Core
 **Goal**: A user can authenticate to GitHub and fetch PR comments from a repository, filtered by state and date range, with results written to local storage.
@@ -122,7 +125,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Project Foundation | 0/TBD | Not started | - |
+| 1. Project Foundation | 0/1 | Not started | - |
 | 2. GitHub Extraction Core | 0/TBD | Not started | - |
 | 3. Extraction Resilience & Cache | 0/TBD | Not started | - |
 | 4. Claude Classifier | 0/TBD | Not started | - |
