@@ -79,25 +79,25 @@
 | INFRA-04 | Phase 1 | Pending |
 | CORE-01 | Phase 2 | Pending |
 | CORE-02 | Phase 2 | Pending |
-| CORE-03 | Phase 2 | Pending |
-| CORE-04 | Phase 2 | Pending |
-| CORE-05 | Phase 2 | Pending |
-| CLASS-01 | Phase 3 | Pending |
-| CLASS-02 | Phase 3 | Pending |
-| CLASS-03 | Phase 3 | Pending |
-| CLASS-04 | Phase 3 | Pending |
-| KB-01 | Phase 4 | Pending |
-| KB-02 | Phase 4 | Pending |
-| KB-03 | Phase 4 | Pending |
-| KB-04 | Phase 4 | Pending |
-| CLI-01 | Phase 5 | Pending |
-| CLI-02 | Phase 5 | Pending |
-| CLI-03 | Phase 5 | Pending |
-| CLI-04 | Phase 5 | Pending |
-| ACTION-01 | Phase 6 | Pending |
-| ACTION-02 | Phase 6 | Pending |
-| ACTION-03 | Phase 6 | Pending |
-| INFRA-02 | Phase 7 | Pending |
+| CORE-03 | Phase 3 | Pending |
+| CORE-04 | Phase 3 | Pending |
+| CORE-05 | Phase 3 | Pending |
+| CLASS-01 | Phase 4 | Pending |
+| CLASS-02 | Phase 4 | Pending |
+| CLASS-03 | Phase 4 | Pending |
+| CLASS-04 | Phase 4 | Pending |
+| KB-01 | Phase 5 | Pending |
+| KB-02 | Phase 5 | Pending |
+| KB-03 | Phase 5 | Pending |
+| KB-04 | Phase 5 | Pending |
+| CLI-01 | Phase 6 | Pending |
+| CLI-02 | Phase 6 | Pending |
+| CLI-03 | Phase 6 | Pending |
+| CLI-04 | Phase 6 | Pending |
+| ACTION-01 | Phase 7 | Pending |
+| ACTION-02 | Phase 7 | Pending |
+| ACTION-03 | Phase 7 | Pending |
+| INFRA-02 | distributed (phases 1-7) | Pending |
 | INFRA-03 | Phase 7 | Pending |
 
 **Coverage:**
@@ -107,4 +107,4 @@
 
 ---
 *Requirements defined: 2026-03-07*
-*Last updated: 2026-03-07 after initial definition*
+*Last updated: 2026-03-10 — Phase structure revised: Phase 2 split into 2+3, testing distributed, Phase 7 (Testing & Docs) removed, new Phase 7 is GitHub Action + README*
