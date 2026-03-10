@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:pypi.org)",
+      "Bash(\"/c/Users/galzi/src/github-pr-kb/.planning/research/ARCHITECTURE.md\":*)",
+      "Bash(node:*)"
+    ]
+  },
+  "enabledPlugins": {
+    "pyright-lsp@claude-plugins-official": true,
+    "fullstack-dev-skills@fullstack-dev-skills": true
+  }
+}
