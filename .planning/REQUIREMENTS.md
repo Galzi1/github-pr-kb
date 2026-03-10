@@ -42,10 +42,10 @@
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: Project ships with `pyproject.toml` declaring all runtime and dev dependencies with version pins
+- [x] **INFRA-01**: Project ships with `pyproject.toml` declaring all runtime and dev dependencies with version pins
 - [ ] **INFRA-02**: Test suite covers extractor, classifier, and generator using mocked GitHub and Claude APIs
 - [ ] **INFRA-03**: README documents setup, environment variables, CLI usage, and includes example KB output
-- [ ] **INFRA-04**: `.env.example` template documents all required environment variables
+- [x] **INFRA-04**: `.env.example` template documents all required environment variables
 
 ## v2 Requirements
 
@@ -75,8 +75,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-04 | Phase 1 | Pending |
+| INFRA-01 | Phase 1 | Complete (01-01) |
+| INFRA-04 | Phase 1 | Complete (01-01) |
 | CORE-01 | Phase 2 | Pending |
 | CORE-02 | Phase 2 | Pending |
 | CORE-03 | Phase 3 | Pending |
