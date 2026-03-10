@@ -1,0 +1,36 @@
+[build-system]
+requires = ["uv_build>=0.6.0,<0.7.0"]
+build-backend = "uv_build"
+
+[project]
+name = "github-pr-kb"
+version = "0.1.0"
+description = "Extract and preserve knowledge from GitHub PR discussions"
+requires-python = ">=3.11"
+dependencies = [
+    "PyGithub>=2.5.0",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.13.1",
+    "anthropic>=0.84.0",
+    "click>=8.3.1",
+]
+
+[project.scripts]
+github-pr-kb = "github_pr_kb.cli:cli"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.15.5",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=github_pr_kb --cov-report=term-missing"
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
