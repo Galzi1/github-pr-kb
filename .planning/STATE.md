@@ -1,10 +1,17 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: MVP
-current_phase: 1
-status: Ready to plan
-last_updated: "2026-03-10T00:00:00.000Z"
+milestone_name: milestone
+status: planning
+stopped_at: Phase 1 context gathered
+last_updated: "2026-03-10T21:17:11.969Z"
+last_activity: "2026-03-10 — Roadmap revised: Phase 2 split into Extraction Core (2) and Resilience & Cache (3); old Phase 7 (Testing & Docs) removed; testing woven into every phase; INFRA-03 (README) moved to new Phase 7; all subsequent phases renumbered"
+progress:
+  total_phases: 7
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -72,6 +79,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10
-Stopped at: Roadmap revised per user feedback — ready to plan Phase 1
-Resume file: None
+Last session: 2026-03-10T21:17:11.962Z
+Stopped at: Phase 1 context gathered
+Resume file: .planning/phases/01-project-foundation/01-CONTEXT.md
