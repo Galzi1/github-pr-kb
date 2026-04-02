@@ -50,7 +50,11 @@ Plans:
   1. User can extract all PR comments from a repository using a personal access token, with results written to a local cache
   2. User can filter extraction by PR state (open/closed/all) and an optional date range; only matching PRs are fetched
   3. Tests covering this phase's components pass (mocked external APIs where applicable)
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Pydantic data models (PRRecord, CommentRecord, PRFile) with JSON round-trip tests
+- [ ] 02-02-PLAN.md — GitHubExtractor with auth, state/date filtering, bot noise detection, and per-PR cache write
 
 ### Phase 3: Extraction Resilience & Cache
 **Goal**: Extraction survives GitHub rate limits and interrupted runs — already-cached comments are never re-fetched, using PR + comment ID as the immutable dedup key.
@@ -121,12 +125,12 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Project Foundation | 1/1 | Complete | 2026-03-10 |
-| 2. GitHub Extraction Core | 0/TBD | Not started | - |
+| 2. GitHub Extraction Core | 0/2 | Not started | - |
 | 3. Extraction Resilience & Cache | 0/TBD | Not started | - |
 | 4. Claude Classifier | 0/TBD | Not started | - |
 | 5. KB Generator | 0/TBD | Not started | - |
