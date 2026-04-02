@@ -1,6 +1,5 @@
 {
   "mode": "interactive",
-  "depth": "standard",
   "model_profile": "balanced",
   "commit_docs": true,
   "search_gitignored": false,
@@ -10,7 +9,10 @@
   "workflow": {
     "research": true,
     "plan_check": true,
-    "verifier": true
+    "verifier": true,
+    "nyquist_validation": true,
+    "_auto_chain_active": false
   },
-  "parallelization": true
+  "parallelization": true,
+  "granularity": "standard"
 }

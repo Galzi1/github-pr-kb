@@ -14,7 +14,7 @@ Storage format decisions (DB type, schema, cache mechanism) for Phases 2, 3, and
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Project Foundation** - uv environment, pyproject.toml, Pydantic types, and env configuration
+- [x] **Phase 1: Project Foundation** - uv environment, pyproject.toml, Pydantic types, and env configuration
 - [ ] **Phase 2: GitHub Extraction Core** - basic auth, fetching PR comments, filtering by state and date range
 - [ ] **Phase 3: Extraction Resilience & Cache** - rate-limit backoff, local cache persistence, idempotency
 - [ ] **Phase 4: Claude Classifier** - classification, confidence scoring, and cost caching
@@ -37,7 +37,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 1 plan
 
 Plans:
-- [ ] 01-01-PLAN.md — pyproject.toml scaffold, package skeleton, stubs, .env.example, config.py with pydantic-settings validation, smoke test
+- [x] 01-01-PLAN.md — pyproject.toml scaffold, package skeleton, stubs, .env.example, config.py with pydantic-settings validation, smoke test
 
 ### Phase 2: GitHub Extraction Core
 **Goal**: A user can authenticate to GitHub and fetch PR comments from a repository, filtered by state and date range, with results written to local storage.
@@ -125,7 +125,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Project Foundation | 0/1 | Not started | - |
+| 1. Project Foundation | 1/1 | Complete | 2026-03-10 |
 | 2. GitHub Extraction Core | 0/TBD | Not started | - |
 | 3. Extraction Resilience & Cache | 0/TBD | Not started | - |
 | 4. Claude Classifier | 0/TBD | Not started | - |

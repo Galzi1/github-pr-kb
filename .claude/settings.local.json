@@ -4,7 +4,12 @@
       "WebSearch",
       "WebFetch(domain:pypi.org)",
       "Bash(\"/c/Users/galzi/src/github-pr-kb/.planning/research/ARCHITECTURE.md\":*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Read(//c/Users/galzi/AppData/Local/miniconda3/Scripts/**)",
+      "Read(//c/ProgramData/miniconda3/Scripts/**)",
+      "Read(//c/Users/galzi/miniconda3/Scripts/**)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "mcp__plugin_context7_context7__resolve-library-id"
     ]
   },
   "enabledPlugins": {
