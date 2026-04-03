@@ -212,3 +212,6 @@ __marimo__/
 
 # github-pr-kb tool working directory (cache, extraction data)
 .github-pr-kb/
+
+# Claude Code (unneeded files only)
+.claude/worktrees/

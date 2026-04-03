@@ -22,7 +22,14 @@
       "Bash(.venv/Scripts/python.exe -c \"from github_pr_kb.extractor import GitHubExtractor, is_noise, SKIP_BOT_LOGINS; print\\('extractor OK'\\)\")",
       "Bash(.venv/Scripts/python.exe -c \"from github_pr_kb.models import PRRecord, CommentRecord, PRFile; print\\('models OK'\\)\")",
       "Bash(GITHUB_TOKEN=ghp_test .venv/Scripts/python.exe -c \"from github_pr_kb.extractor import GitHubExtractor, is_noise, SKIP_BOT_LOGINS; print\\('extractor OK'\\)\")",
-      "Skill(gsd:ship)"
+      "Skill(gsd:ship)",
+      "Bash(rtk gh:*)",
+      "Bash(rtk grep:*)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Skill(commit-commands:commit)",
+      "Skill(gsd:check-todos)",
+      "Skill(gsd:add-tests)",
+      "Skill(commit-commands:commit-push-pr)"
     ]
   },
   "enabledPlugins": {
