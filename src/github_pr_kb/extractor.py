@@ -3,9 +3,13 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from collections.abc import Mapping
+from typing import Optional, Union
 
 from github import Auth, Github
+from github.IssueComment import IssueComment
+from github.PullRequest import PullRequest
+from github.PullRequestComment import PullRequestComment
 
 from github_pr_kb.config import settings
 from github_pr_kb.models import CommentRecord, PRFile, PRRecord
@@ -42,7 +46,7 @@ def is_noise(login: str, body: str) -> bool:
     return False
 
 
-def _extract_reactions(raw_reactions: Any) -> dict[str, int]:
+def _extract_reactions(raw_reactions: Mapping[str, int]) -> dict[str, int]:
     """Extract non-zero reaction counts from a reactions dict.
 
     Accepts a dict-like object (from mocks or PyGithub's reactions property).
@@ -67,7 +71,7 @@ def _ensure_tz_aware(dt: datetime) -> datetime:
 
 
 def _comment_to_record(
-    c: Any,
+    c: Union[PullRequestComment, IssueComment],
     comment_type: str,
     *,
     file_path: Optional[str] = None,
@@ -98,7 +102,7 @@ class GitHubExtractor:
         client = Github(auth=Auth.Token(settings.github_token))
         self.repo = client.get_repo(repo_name)
 
-    def _collect_comments(self, pr: Any) -> list[CommentRecord]:
+    def _collect_comments(self, pr: PullRequest) -> list[CommentRecord]:
         """Collect all non-noise review and issue comments for a PR."""
         comments: list[CommentRecord] = []
         for c in pr.get_review_comments():
@@ -111,7 +115,7 @@ class GitHubExtractor:
                 comments.append(record)
         return comments
 
-    def _write_cache(self, pr: Any, comments: list[CommentRecord]) -> Path:
+    def _write_cache(self, pr: PullRequest, comments: list[CommentRecord]) -> Path:
         """Build a PRFile from a PR and its comments, then write it to the cache directory."""
         pr_record = PRRecord(
             number=pr.number,
