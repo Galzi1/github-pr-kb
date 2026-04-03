@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-04-02T14:38:43.284Z"
-last_activity: 2026-04-02
+stopped_at: Completed 02-02-PLAN.md (GitHubExtractor implementation — Phase 2 complete)
+last_updated: "2026-04-03T18:02:05.006Z"
+last_activity: 2026-04-03
 progress:
   total_phases: 7
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
-  percent: 14
+  completed_phases: 2
+  total_plans: 3
+  completed_plans: 3
+  percent: 29
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Preserve and make discoverable architectural decisions, code patterns, gotchas, and domain knowledge from PR discussions before they get lost in closed threads.
-**Current focus:** Phase 1 — Project Foundation
+**Current focus:** Phase 02 — github-extraction-core
 
 ## Current Position
 
-Phase: 1 of 7 (Project Foundation)
-Plan: 1 of 1 in current phase
-Status: Phase 1 Plan 01 complete
-Last activity: 2026-04-02
+Phase: 3
+Plan: Not started
+Status: Phase 2 complete, ready for Phase 3
+Last activity: 2026-04-03
 
-Progress: [█░░░░░░░░░] 14%
+Progress: [██░░░░░░░░] 29%
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [█░░░░░░░░░] 14%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 02-github-extraction-core P01 | 4 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -69,6 +70,13 @@ Recent decisions affecting current work:
 - [01-01] Module-level settings = Settings() in config.py causes import-time ValidationError — fail fast before CLI logic runs
 - [01-01] IsolatedSettings in tests avoids importing module-level settings to prevent ValidationError during test runs
 - [01-01] cli = None stub in cli.py prevents AttributeError from [project.scripts] entry point before Phase 6
+- [Phase 02-01]: ConfigDict(extra='ignore') on all models for forward-compatible schema — new fields won't break deserialization of existing cached files
+- [Phase 02-01]: Literal['review','issue'] for comment_type and Literal['open','closed'] for state enforce valid values at model construction boundary
+- [Phase 02-02]: Auth.Token(token) for PyGithub authentication (not positional string) — required for PyGithub v2
+- [Phase 02-02]: Break on since boundary (early-stop), continue on until boundary — both use pr.updated_at not created_at
+- [Phase 02-02]: is_noise() requires at least one 5+ char word — filters LGTM, emoji, +1 without explicit keyword list
+- [Phase 02-02]: SKIP_BOT_LOGINS excludes code review bots (Copilot, CodeRabbit) — they produce substantive review comments
+- [Phase 02-02]: conftest.py must set GITHUB_TOKEN at module level (not fixture) — config.py instantiates Settings() at import time
 
 ### Pending Todos
 
@@ -84,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T22:14:48Z
-Stopped at: Completed 01-01-PLAN.md
-Resume file: .planning/phases/01-project-foundation/01-01-SUMMARY.md
+Last session: 2026-04-03T17:40:00.000Z
+Stopped at: Completed 02-02-PLAN.md (GitHubExtractor implementation — Phase 2 complete)
+Resume file: None

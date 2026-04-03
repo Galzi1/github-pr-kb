@@ -23,7 +23,8 @@ Preserve and make discoverable the architectural decisions, code patterns, gotch
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Extract PR comments from a GitHub repository via API — Validated in Phase 02: GitHub Extraction Core
+- [x] Authenticated access via PAT (GITHUB_TOKEN) — Validated in Phase 02: GitHub Extraction Core
 
 ### Active
 
@@ -72,4 +73,4 @@ Preserve and make discoverable the architectural decisions, code patterns, gotch
 | Single repo scope for v1 | Simpler to build and test, can expand later if needed | — Pending |
 
 ---
-*Last updated: 2026-03-07 after milestone v1.0 started*
+*Last updated: 2026-04-03 — Phase 02 complete: GitHub extraction core implemented (auth, PR fetch, comment filtering, JSON cache)*

@@ -209,3 +209,6 @@ __marimo__/
 # OpenCode
 .opencode/
 .opencode/plans/plan.md
+
+# github-pr-kb tool working directory (cache, extraction data)
+.github-pr-kb/
