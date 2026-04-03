@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 2 context gathered
-last_updated: "2026-04-02T16:00:03.775Z"
-last_activity: 2026-04-02
+status: executing
+stopped_at: Completed 02-01-PLAN.md (PRRecord/CommentRecord/PRFile models)
+last_updated: "2026-04-03T14:02:17.382Z"
+last_activity: 2026-04-03
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  total_plans: 3
+  completed_plans: 2
   percent: 14
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Preserve and make discoverable architectural decisions, code patterns, gotchas, and domain knowledge from PR discussions before they get lost in closed threads.
-**Current focus:** Phase 1 — Project Foundation
+**Current focus:** Phase 02 — github-extraction-core
 
 ## Current Position
 
-Phase: 1 of 7 (Project Foundation)
-Plan: 1 of 1 in current phase
-Status: Phase 1 Plan 01 complete
-Last activity: 2026-04-02
+Phase: 02 (github-extraction-core) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-04-03
 
 Progress: [█░░░░░░░░░] 14%
 
@@ -52,6 +52,7 @@ Progress: [█░░░░░░░░░] 14%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 02-github-extraction-core P01 | 4 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -69,6 +70,8 @@ Recent decisions affecting current work:
 - [01-01] Module-level settings = Settings() in config.py causes import-time ValidationError — fail fast before CLI logic runs
 - [01-01] IsolatedSettings in tests avoids importing module-level settings to prevent ValidationError during test runs
 - [01-01] cli = None stub in cli.py prevents AttributeError from [project.scripts] entry point before Phase 6
+- [Phase 02-01]: ConfigDict(extra='ignore') on all models for forward-compatible schema — new fields won't break deserialization of existing cached files
+- [Phase 02-01]: Literal['review','issue'] for comment_type and Literal['open','closed'] for state enforce valid values at model construction boundary
 
 ### Pending Todos
 
@@ -84,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-02T16:00:03.765Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-github-extraction-core/02-CONTEXT.md
+Last session: 2026-04-03T14:02:17.373Z
+Stopped at: Completed 02-01-PLAN.md (PRRecord/CommentRecord/PRFile models)
+Resume file: None

@@ -53,7 +53,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Pydantic data models (PRRecord, CommentRecord, PRFile) with JSON round-trip tests
+- [x] 02-01-PLAN.md — Pydantic data models (PRRecord, CommentRecord, PRFile) with JSON round-trip tests
 - [ ] 02-02-PLAN.md — GitHubExtractor with auth, state/date filtering, bot noise detection, and per-PR cache write
 
 ### Phase 3: Extraction Resilience & Cache
@@ -130,7 +130,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Project Foundation | 1/1 | Complete | 2026-03-10 |
-| 2. GitHub Extraction Core | 0/2 | Not started | - |
+| 2. GitHub Extraction Core | 1/2 | In Progress|  |
 | 3. Extraction Resilience & Cache | 0/TBD | Not started | - |
 | 4. Claude Classifier | 0/TBD | Not started | - |
 | 5. KB Generator | 0/TBD | Not started | - |

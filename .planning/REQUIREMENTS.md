@@ -7,7 +7,7 @@
 
 ### Core Extraction
 
-- [ ] **CORE-01**: User can extract all PR comments from a GitHub repository using a personal access token
+- [x] **CORE-01**: User can extract all PR comments from a GitHub repository using a personal access token
 - [ ] **CORE-02**: User can filter extraction by PR state (open/closed/all) and optional date range
 - [ ] **CORE-03**: Tool handles GitHub API rate limits with exponential backoff and resumes without data loss
 - [ ] **CORE-04**: Extracted comments are cached locally (JSON) so re-runs avoid redundant API calls
@@ -77,7 +77,7 @@
 |-------------|-------|--------|
 | INFRA-01 | Phase 1 | Complete (01-01) |
 | INFRA-04 | Phase 1 | Complete (01-01) |
-| CORE-01 | Phase 2 | Pending |
+| CORE-01 | Phase 2 | Complete |
 | CORE-02 | Phase 2 | Pending |
 | CORE-03 | Phase 3 | Pending |
 | CORE-04 | Phase 3 | Pending |
