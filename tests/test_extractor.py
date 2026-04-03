@@ -309,6 +309,23 @@ def test_upper_date_bound(tmp_path):
     assert (cache_dir / "pr-71.json").exists()
 
 
+def test_naive_datetime_coerced_to_utc(tmp_path):
+    """Naive since/until datetimes are coerced to UTC instead of crashing with TypeError."""
+    cache_dir = tmp_path / "cache"
+    since = datetime(2024, 6, 1)  # intentionally naive — no tzinfo
+    pr = make_mock_pr(number=90, updated_at=datetime(2024, 7, 1, tzinfo=timezone.utc))
+
+    with patch("github_pr_kb.extractor.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_repo.get_pulls.return_value = [pr]
+        MockGithub.return_value.get_repo.return_value = mock_repo
+
+        extractor = GitHubExtractor("owner/repo", cache_dir=cache_dir)
+        paths = extractor.extract(since=since)  # must not raise TypeError
+
+    assert len(paths) == 1
+
+
 def test_reactions_extracted(tmp_path):
     """Review comment with reactions stores non-zero counts only."""
     cache_dir = tmp_path / "cache"
