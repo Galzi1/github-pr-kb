@@ -80,7 +80,8 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None.
+1. **Add GitHub Actions CI for existing test suite** (`testing`) — `2026-04-03-add-github-actions-ci-for-existing-test-suite.md`
+   Create `.github/workflows/ci.yml` to run the unit test suite on push/PR; skip integration tests by default.
 
 ### Blockers/Concerns
 
