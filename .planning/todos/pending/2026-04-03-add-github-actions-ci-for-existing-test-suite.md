@@ -18,6 +18,6 @@ Create a GitHub Actions workflow (`.github/workflows/ci.yml`) that:
 - Triggers on push to any branch and on pull requests targeting `main`
 - Sets up Python using the version from `pyproject.toml` (`requires-python = ">=3.11"`)
 - Installs dependencies via `uv sync`
-- Runs the unit test suite: `.venv/Scripts/python.exe -m pytest tests/ --ignore=tests/test_extractor_integration.py`
-- Skips integration tests by default (they require `RUN_INTEGRATION_TESTS=1` + a real `GITHUB_TOKEN` secret)
-- Optionally: run linting via `ruff check src/ tests/`
+- Runs the full test suite including integration tests: `RUN_INTEGRATION_TESTS=1 python -m pytest tests/ -v`
+- Integration tests work in CI without any extra secrets — GitHub Actions provides a real `GITHUB_TOKEN` automatically, which satisfies the skip guard (`settings.github_token != _DUMMY_TOKEN`)
+- Run linting via `ruff check src/ tests/`
