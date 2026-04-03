@@ -15,7 +15,7 @@ Storage format decisions (DB type, schema, cache mechanism) for Phases 2, 3, and
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Project Foundation** - uv environment, pyproject.toml, Pydantic types, and env configuration
-- [ ] **Phase 2: GitHub Extraction Core** - basic auth, fetching PR comments, filtering by state and date range
+- [x] **Phase 2: GitHub Extraction Core** - basic auth, fetching PR comments, filtering by state and date range
 - [ ] **Phase 3: Extraction Resilience & Cache** - rate-limit backoff, local cache persistence, idempotency
 - [ ] **Phase 4: Claude Classifier** - classification, confidence scoring, and cost caching
 - [ ] **Phase 5: KB Generator** - markdown files with frontmatter, index file, and incremental merge
@@ -54,7 +54,7 @@ Plans:
 
 Plans:
 - [x] 02-01-PLAN.md — Pydantic data models (PRRecord, CommentRecord, PRFile) with JSON round-trip tests
-- [ ] 02-02-PLAN.md — GitHubExtractor with auth, state/date filtering, bot noise detection, and per-PR cache write
+- [x] 02-02-PLAN.md — GitHubExtractor with auth, state/date filtering, bot noise detection, and per-PR cache write
 
 ### Phase 3: Extraction Resilience & Cache
 **Goal**: Extraction survives GitHub rate limits and interrupted runs — already-cached comments are never re-fetched, using PR + comment ID as the immutable dedup key.
@@ -130,7 +130,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Project Foundation | 1/1 | Complete | 2026-03-10 |
-| 2. GitHub Extraction Core | 1/2 | In Progress|  |
+| 2. GitHub Extraction Core | 2/2 | Complete | 2026-04-03 |
 | 3. Extraction Resilience & Cache | 0/TBD | Not started | - |
 | 4. Claude Classifier | 0/TBD | Not started | - |
 | 5. KB Generator | 0/TBD | Not started | - |

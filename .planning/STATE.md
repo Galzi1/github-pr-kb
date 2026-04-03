@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md (PRRecord/CommentRecord/PRFile models)
-last_updated: "2026-04-03T14:02:17.382Z"
+stopped_at: Completed 02-02-PLAN.md (GitHubExtractor implementation)
+last_updated: "2026-04-03T17:40:00.000Z"
 last_activity: 2026-04-03
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 3
-  completed_plans: 2
-  percent: 14
+  completed_plans: 3
+  percent: 29
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 
 ## Current Position
 
-Phase: 02 (github-extraction-core) — EXECUTING
-Plan: 2 of 2
-Status: Ready to execute
+Phase: 02 (github-extraction-core) — COMPLETE
+Plan: 2 of 2 (COMPLETE)
+Status: Phase 2 complete, ready for Phase 3
 Last activity: 2026-04-03
 
-Progress: [█░░░░░░░░░] 14%
+Progress: [██░░░░░░░░] 29%
 
 ## Performance Metrics
 
@@ -72,6 +72,11 @@ Recent decisions affecting current work:
 - [01-01] cli = None stub in cli.py prevents AttributeError from [project.scripts] entry point before Phase 6
 - [Phase 02-01]: ConfigDict(extra='ignore') on all models for forward-compatible schema — new fields won't break deserialization of existing cached files
 - [Phase 02-01]: Literal['review','issue'] for comment_type and Literal['open','closed'] for state enforce valid values at model construction boundary
+- [Phase 02-02]: Auth.Token(token) for PyGithub authentication (not positional string) — required for PyGithub v2
+- [Phase 02-02]: Break on since boundary (early-stop), continue on until boundary — both use pr.updated_at not created_at
+- [Phase 02-02]: is_noise() requires at least one 5+ char word — filters LGTM, emoji, +1 without explicit keyword list
+- [Phase 02-02]: SKIP_BOT_LOGINS excludes code review bots (Copilot, CodeRabbit) — they produce substantive review comments
+- [Phase 02-02]: conftest.py must set GITHUB_TOKEN at module level (not fixture) — config.py instantiates Settings() at import time
 
 ### Pending Todos
 
@@ -87,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-03T14:02:17.373Z
-Stopped at: Completed 02-01-PLAN.md (PRRecord/CommentRecord/PRFile models)
+Last session: 2026-04-03T17:40:00.000Z
+Stopped at: Completed 02-02-PLAN.md (GitHubExtractor implementation — Phase 2 complete)
 Resume file: None
