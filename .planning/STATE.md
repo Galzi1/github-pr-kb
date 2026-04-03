@@ -80,7 +80,8 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+1. **Add integration test suite for GitHub extraction** (`testing`) — `2026-04-03-add-integration-test-suite-for-github-extraction.md`
+   Test `GitHubExtractor` against real GitHub API using known values from PR #2.
 
 ### Blockers/Concerns
 
