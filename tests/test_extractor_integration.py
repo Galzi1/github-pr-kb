@@ -12,6 +12,7 @@ import os
 
 import pytest
 
+from github_pr_kb.config import settings
 from github_pr_kb.extractor import GitHubExtractor
 from github_pr_kb.models import PRFile
 
@@ -22,8 +23,7 @@ _SKIP_REASON = "Integration tests require RUN_INTEGRATION_TESTS=1 and a real GIT
 def _integration_tests_enabled() -> bool:
     if os.getenv("RUN_INTEGRATION_TESTS") != "1":
         return False
-    token = os.getenv("GITHUB_TOKEN", "")
-    return bool(token) and token != _DUMMY_TOKEN
+    return settings.github_token != _DUMMY_TOKEN
 
 
 pytestmark = [
@@ -52,20 +52,21 @@ KNOWN_REVIEW_COMMENT_IDS = {
 
 
 # ---------------------------------------------------------------------------
-# Shared fixture — one real API call per test session
+# Shared fixture — fetches only PR #2, shared across all tests in this module
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="module")
 def pr2_file(tmp_path_factory: pytest.TempPathFactory) -> PRFile:
-    """Extract all closed PRs from the real API, return the PRFile for PR #2."""
+    """Fetch PR #2 directly from the real API and return its PRFile."""
     cache_dir = tmp_path_factory.mktemp("integration_cache")
     extractor = GitHubExtractor(REPO, cache_dir=cache_dir)
-    extractor.extract(state="closed")
+    pr = extractor.repo.get_pull(PR_NUMBER)
+    extractor._write_cache(pr, extractor._collect_comments(pr))
 
     cache_file = cache_dir / f"pr-{PR_NUMBER}.json"
-    assert cache_file.exists(), f"Cache file for PR #{PR_NUMBER} not found — was it extracted?"
-    return PRFile.model_validate(json.loads(cache_file.read_text()))
+    assert cache_file.exists(), f"Cache file for PR #{PR_NUMBER} not found"
+    return PRFile.model_validate(json.loads(cache_file.read_text(encoding="utf-8")))
 
 
 # ---------------------------------------------------------------------------
