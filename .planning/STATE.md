@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 Phase: 3
 Plan: Not started
 Status: Phase 2 complete, ready for Phase 3
-Last activity: 2026-04-03
+Last activity: 2026-04-04 - Completed quick task 260404-cv7: Add GitHub Actions CI for existing test suite
 
 Progress: [██░░░░░░░░] 29%
 
@@ -80,8 +80,13 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-1. **Add GitHub Actions CI for existing test suite** (`testing`) — `2026-04-03-add-github-actions-ci-for-existing-test-suite.md`
-   Create `.github/workflows/ci.yml` to run the unit test suite on push/PR; skip integration tests by default.
+(none)
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260404-cv7 | Add GitHub Actions CI for existing test suite | 2026-04-04 | 984f1d8 | [260404-cv7-add-github-actions-ci-for-existing-test-](./quick/260404-cv7-add-github-actions-ci-for-existing-test-/) |
 
 ### Blockers/Concerns
 
