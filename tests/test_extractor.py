@@ -3,8 +3,11 @@ import json
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
-from github_pr_kb.extractor import GitHubExtractor
-from github_pr_kb.models import PRFile
+import pytest
+from requests.exceptions import RetryError
+
+from github_pr_kb.extractor import GitHubExtractor, RateLimitExhaustedError
+from github_pr_kb.models import CommentRecord, PRFile, PRRecord
 
 # ---------------------------------------------------------------------------
 # Mock helpers
@@ -346,3 +349,233 @@ def test_reactions_extracted(tmp_path):
     assert reactions.get("heart") == 1
     assert "-1" not in reactions
     assert "laugh" not in reactions
+
+
+# ---------------------------------------------------------------------------
+# Resilience tests (Phase 03 — CORE-03, CORE-04, CORE-05, D-06)
+# ---------------------------------------------------------------------------
+
+def _make_pr_file_json(number: int, comment_ids: list[int]) -> str:
+    """Build a PRFile JSON string with the given comment IDs for pre-populating cache."""
+    comments = [
+        CommentRecord(
+            comment_id=cid,
+            comment_type="review",
+            author="alice",
+            body="Substantive comment here",
+            created_at=datetime(2024, 1, 15, tzinfo=timezone.utc),
+            url=f"https://github.com/o/r/pull/{number}#discussion_r{cid}",
+        )
+        for cid in comment_ids
+    ]
+    pr_file = PRFile(
+        pr=PRRecord(
+            number=number,
+            title="Test PR",
+            body="desc",
+            state="open",
+            url=f"https://github.com/o/r/pull/{number}",
+        ),
+        comments=comments,
+        extracted_at=datetime(2024, 1, 15, tzinfo=timezone.utc),
+    )
+    return json.dumps(pr_file.model_dump(mode="json"), indent=2)
+
+
+def test_rate_limit_exhaustion(tmp_path):
+    """When iteration over pulls raises RetryError, RateLimitExhaustedError is raised with resume hint."""
+    cache_dir = tmp_path / "cache"
+
+    with patch("github_pr_kb.extractor.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_repo.get_pulls.side_effect = RetryError("rate limit")
+        MockGithub.return_value.get_repo.return_value = mock_repo
+
+        extractor = GitHubExtractor("owner/repo", cache_dir=cache_dir)
+        with pytest.raises(RateLimitExhaustedError) as exc_info:
+            extractor.extract()
+
+    assert "Re-run the same command to resume" in str(exc_info.value)
+
+
+def test_rate_limit_partial_flush(tmp_path):
+    """Already-processed PRs are written to disk before RateLimitExhaustedError is raised."""
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    pr1 = make_mock_pr(number=1)
+    pr1.get_review_comments.return_value = [
+        make_mock_review_comment(comment_id=1001, body="Substantive comment about architecture"),
+    ]
+    pr2 = make_mock_pr(number=2)
+    pr2.get_review_comments.return_value = [
+        make_mock_review_comment(comment_id=1002, body="Another substantive review comment"),
+    ]
+    pr3 = make_mock_pr(number=3)
+    pr3.get_review_comments.side_effect = RetryError("rate limit")
+
+    with patch("github_pr_kb.extractor.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_repo.get_pulls.return_value = [pr1, pr2, pr3]
+        MockGithub.return_value.get_repo.return_value = mock_repo
+
+        extractor = GitHubExtractor("owner/repo", cache_dir=cache_dir)
+        with pytest.raises(RateLimitExhaustedError):
+            extractor.extract()
+
+    assert (cache_dir / "pr-1.json").exists(), "PR 1 should be flushed before rate limit error"
+    assert (cache_dir / "pr-2.json").exists(), "PR 2 should be flushed before rate limit error"
+
+
+def test_outside_window_not_fetched(tmp_path):
+    """PR outside date window keeps existing cache file byte-for-byte unchanged."""
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    original_content = _make_pr_file_json(99, [1001])
+    (cache_dir / "pr-99.json").write_text(original_content, encoding="utf-8")
+
+    # PR #99 updated_at is outside the window (before since)
+    pr99 = make_mock_pr(number=99, updated_at=datetime(2023, 1, 1, tzinfo=timezone.utc))
+
+    since = datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+    with patch("github_pr_kb.extractor.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_repo.get_pulls.return_value = [pr99]
+        MockGithub.return_value.get_repo.return_value = mock_repo
+
+        extractor = GitHubExtractor("owner/repo", cache_dir=cache_dir)
+        extractor.extract(since=since)
+
+    actual_content = (cache_dir / "pr-99.json").read_text(encoding="utf-8")
+    assert actual_content == original_content, "Cache file for out-of-window PR must not change"
+
+
+def test_inside_window_comments_merged(tmp_path):
+    """Re-run merges new comments into existing cache without duplicating existing ones."""
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    (cache_dir / "pr-42.json").write_text(_make_pr_file_json(42, [1001, 1002]), encoding="utf-8")
+
+    pr = make_mock_pr(number=42)
+    pr.get_review_comments.return_value = [
+        make_mock_review_comment(comment_id=1001, body="Substantive comment about architecture"),
+        make_mock_review_comment(comment_id=1002, body="Another substantive review comment"),
+        make_mock_review_comment(comment_id=1003, body="A brand new comment with details"),
+    ]
+
+    with patch("github_pr_kb.extractor.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_repo.get_pulls.return_value = [pr]
+        MockGithub.return_value.get_repo.return_value = mock_repo
+
+        extractor = GitHubExtractor("owner/repo", cache_dir=cache_dir)
+        extractor.extract()
+
+    data = json.loads((cache_dir / "pr-42.json").read_text())
+    pr_file = PRFile.model_validate(data)
+    assert len(pr_file.comments) == 3, f"Expected 3 comments after merge, got {len(pr_file.comments)}"
+
+
+def test_no_duplicate_comment_ids(tmp_path):
+    """Re-run with same comments does not add duplicates."""
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    (cache_dir / "pr-42.json").write_text(_make_pr_file_json(42, [1001, 1002]), encoding="utf-8")
+
+    pr = make_mock_pr(number=42)
+    pr.get_review_comments.return_value = [
+        make_mock_review_comment(comment_id=1001, body="Substantive comment about architecture"),
+        make_mock_review_comment(comment_id=1002, body="Another substantive review comment"),
+    ]
+
+    with patch("github_pr_kb.extractor.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_repo.get_pulls.return_value = [pr]
+        MockGithub.return_value.get_repo.return_value = mock_repo
+
+        extractor = GitHubExtractor("owner/repo", cache_dir=cache_dir)
+        extractor.extract()
+
+    data = json.loads((cache_dir / "pr-42.json").read_text())
+    pr_file = PRFile.model_validate(data)
+    assert len(pr_file.comments) == 2, f"Expected 2 comments (no duplicates), got {len(pr_file.comments)}"
+
+
+def test_merge_appends_new_only(tmp_path):
+    """Merge appends only net-new comments by comment_id."""
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    (cache_dir / "pr-42.json").write_text(_make_pr_file_json(42, [1001]), encoding="utf-8")
+
+    pr = make_mock_pr(number=42)
+    pr.get_review_comments.return_value = [
+        make_mock_review_comment(comment_id=1001, body="Substantive comment about architecture"),
+        make_mock_review_comment(comment_id=2001, body="A new substantive comment about the design"),
+    ]
+
+    with patch("github_pr_kb.extractor.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_repo.get_pulls.return_value = [pr]
+        MockGithub.return_value.get_repo.return_value = mock_repo
+
+        extractor = GitHubExtractor("owner/repo", cache_dir=cache_dir)
+        extractor.extract()
+
+    data = json.loads((cache_dir / "pr-42.json").read_text())
+    pr_file = PRFile.model_validate(data)
+    assert len(pr_file.comments) == 2
+    comment_ids = {c.comment_id for c in pr_file.comments}
+    assert comment_ids == {1001, 2001}
+
+
+def test_atomic_write_no_partial_file(tmp_path):
+    """After extraction, no .tmp files remain in cache directory."""
+    import glob as glob_module
+
+    cache_dir = tmp_path / "cache"
+    pr = make_mock_pr(number=42)
+    pr.get_review_comments.return_value = [
+        make_mock_review_comment(comment_id=1001, body="Substantive comment about architecture"),
+    ]
+
+    with patch("github_pr_kb.extractor.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_repo.get_pulls.return_value = [pr]
+        MockGithub.return_value.get_repo.return_value = mock_repo
+
+        extractor = GitHubExtractor("owner/repo", cache_dir=cache_dir)
+        extractor.extract()
+
+    assert (cache_dir / "pr-42.json").exists()
+    tmp_files = list(cache_dir.glob("*.tmp"))
+    assert len(tmp_files) == 0, f"Found orphaned .tmp files: {tmp_files}"
+
+
+def test_corrupt_cache_full_fetch(tmp_path):
+    """Corrupt cache file is replaced with fresh data, not crashed on."""
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    (cache_dir / "pr-42.json").write_text("{corrupt", encoding="utf-8")
+
+    pr = make_mock_pr(number=42)
+    pr.get_review_comments.return_value = [
+        make_mock_review_comment(comment_id=1001, body="Substantive comment about architecture"),
+    ]
+
+    with patch("github_pr_kb.extractor.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_repo.get_pulls.return_value = [pr]
+        MockGithub.return_value.get_repo.return_value = mock_repo
+
+        extractor = GitHubExtractor("owner/repo", cache_dir=cache_dir)
+        extractor.extract()  # must not raise
+
+    data = json.loads((cache_dir / "pr-42.json").read_text())
+    pr_file = PRFile.model_validate(data)
+    assert len(pr_file.comments) == 1
