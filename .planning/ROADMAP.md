@@ -68,7 +68,10 @@ Plans:
   2. Re-running extraction on the same repo does not create duplicate entries in the cache (PR + comment ID is the dedup key)
   3. An interrupted extraction can be resumed; comments already in the cache are skipped entirely on the next run
   4. Tests covering this phase's components pass (mocked external APIs where applicable)
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 03-01-PLAN.md — TDD: rate-limit retry (GithubRetry total=5), atomic cache writes (mkstemp + os.replace), merge-based re-runs (comment ID dedup)
 
 ### Phase 4: Claude Classifier
 **Goal**: A user can classify cached PR comments into categories using Claude, with results stored locally, and identical comments never sent to the API twice.
@@ -131,7 +134,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 |-------|----------------|--------|-----------|
 | 1. Project Foundation | 1/1 | Complete | 2026-03-10 |
 | 2. GitHub Extraction Core | 2/2 | Complete | 2026-04-03 |
-| 3. Extraction Resilience & Cache | 0/TBD | Not started | - |
+| 3. Extraction Resilience & Cache | 0/1 | Not started | - |
 | 4. Claude Classifier | 0/TBD | Not started | - |
 | 5. KB Generator | 0/TBD | Not started | - |
 | 6. CLI Integration | 0/TBD | Not started | - |
