@@ -32,7 +32,11 @@
       "Skill(commit-commands:commit-push-pr)",
       "Skill(gsd:do)",
       "Skill(gsd:quick)",
-      "Bash(gh pr create --title 'ci: add GitHub Actions workflow for test suite and linting' --body ':*)"
+      "Bash(gh pr create --title 'ci: add GitHub Actions workflow for test suite and linting' --body ':*)",
+      "Bash(gh api:*)",
+      "Skill(hookify:configure)",
+      "Bash(python -c ':*)",
+      "Bash(echo \"EXIT: $?\")"
     ]
   },
   "enabledPlugins": {
