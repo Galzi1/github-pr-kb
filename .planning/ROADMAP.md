@@ -71,7 +71,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 03-01-PLAN.md — TDD: rate-limit retry (GithubRetry total=5), atomic cache writes (mkstemp + os.replace), merge-based re-runs (comment ID dedup)
+- [x] 03-01-PLAN.md — TDD: rate-limit retry (GithubRetry total=5), atomic cache writes (mkstemp + os.replace), merge-based re-runs (comment ID dedup)
 
 ### Phase 4: Claude Classifier
 **Goal**: A user can classify cached PR comments into categories using Claude, with results stored locally, and identical comments never sent to the API twice.
