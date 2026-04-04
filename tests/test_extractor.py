@@ -535,7 +535,6 @@ def test_merge_appends_new_only(tmp_path):
 
 def test_atomic_write_no_partial_file(tmp_path):
     """After extraction, no .tmp files remain in cache directory."""
-    import glob as glob_module
 
     cache_dir = tmp_path / "cache"
     pr = make_mock_pr(number=42)
