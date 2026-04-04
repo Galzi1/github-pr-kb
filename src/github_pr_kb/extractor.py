@@ -132,7 +132,7 @@ class GitHubExtractor:
 
         Creates a temp file on the same filesystem volume to ensure os.replace
         is a true rename (not a cross-device copy). On failure, cleans up the
-        temp file without raising.
+        temp file and re-raises the original exception.
         """
         tmp_name: str | None = None
         try:
@@ -166,8 +166,15 @@ class GitHubExtractor:
                 )
                 existing_ids = {c.comment_id for c in existing.comments}
                 net_new = [c for c in new_comments if c.comment_id not in existing_ids]
+                fresh_pr = PRRecord(
+                    number=pr.number,
+                    title=pr.title,
+                    body=pr.body,
+                    state=pr.state,
+                    url=pr.html_url,
+                )
                 merged = PRFile(
-                    pr=existing.pr,
+                    pr=fresh_pr,
                     comments=existing.comments + net_new,
                     extracted_at=datetime.now(timezone.utc),
                 )
@@ -251,7 +258,6 @@ class GitHubExtractor:
                 f"Extracted {processed} PRs before rate limit exhaustion. "
                 "Re-run the same command to resume."
             )
-            logger.error(msg)
             raise RateLimitExhaustedError(msg) from exc
 
         return written_paths
