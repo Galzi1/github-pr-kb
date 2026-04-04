@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Project Foundation** - uv environment, pyproject.toml, Pydantic types, and env configuration
 - [x] **Phase 2: GitHub Extraction Core** - basic auth, fetching PR comments, filtering by state and date range
-- [ ] **Phase 3: Extraction Resilience & Cache** - rate-limit backoff, local cache persistence, idempotency
+- [x] **Phase 3: Extraction Resilience & Cache** - rate-limit backoff, local cache persistence, idempotency
 - [ ] **Phase 4: Claude Classifier** - classification, confidence scoring, and cost caching
 - [ ] **Phase 5: KB Generator** - markdown files with frontmatter, index file, and incremental merge
 - [ ] **Phase 6: CLI Integration** - Click commands with --help and actionable error messages
@@ -134,7 +134,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 |-------|----------------|--------|-----------|
 | 1. Project Foundation | 1/1 | Complete | 2026-03-10 |
 | 2. GitHub Extraction Core | 2/2 | Complete | 2026-04-03 |
-| 3. Extraction Resilience & Cache | 0/1 | Not started | - |
+| 3. Extraction Resilience & Cache | 1/1 | Complete | 2026-04-04 |
 | 4. Claude Classifier | 0/TBD | Not started | - |
 | 5. KB Generator | 0/TBD | Not started | - |
 | 6. CLI Integration | 0/TBD | Not started | - |
