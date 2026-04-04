@@ -146,6 +146,17 @@ class GitHubExtractor:
                     os.unlink(tmp_name)
             raise
 
+    @staticmethod
+    def _build_pr_record(pr: PullRequest) -> PRRecord:
+        """Build a PRRecord from a live PyGithub PullRequest object."""
+        return PRRecord(
+            number=pr.number,
+            title=pr.title,
+            body=pr.body,
+            state=pr.state,
+            url=pr.html_url,
+        )
+
     def _merge_or_write(self, pr: PullRequest, new_comments: list[CommentRecord]) -> tuple[Path, int]:
         """Merge new comments into an existing cache file, or write a fresh one.
 
@@ -166,15 +177,8 @@ class GitHubExtractor:
                 )
                 existing_ids = {c.comment_id for c in existing.comments}
                 net_new = [c for c in new_comments if c.comment_id not in existing_ids]
-                fresh_pr = PRRecord(
-                    number=pr.number,
-                    title=pr.title,
-                    body=pr.body,
-                    state=pr.state,
-                    url=pr.html_url,
-                )
                 merged = PRFile(
-                    pr=fresh_pr,
+                    pr=self._build_pr_record(pr),
                     comments=existing.comments + net_new,
                     extracted_at=datetime.now(timezone.utc),
                 )
@@ -185,15 +189,8 @@ class GitHubExtractor:
                 logger.warning("Corrupt cache file %s, replacing", cache_path)
 
         # Fresh write path: file missing or fell through from corrupt file handling.
-        pr_record = PRRecord(
-            number=pr.number,
-            title=pr.title,
-            body=pr.body,
-            state=pr.state,
-            url=pr.html_url,
-        )
         pr_file = PRFile(
-            pr=pr_record,
+            pr=self._build_pr_record(pr),
             comments=new_comments,
             extracted_at=datetime.now(timezone.utc),
         )
