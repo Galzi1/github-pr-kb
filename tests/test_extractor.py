@@ -1,14 +1,10 @@
 """Tests for GitHub PR extractor — uses mocked PyGithub objects."""
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from github_pr_kb.extractor import SKIP_BOT_LOGINS, GitHubExtractor, is_noise
-from github_pr_kb.models import CommentRecord, PRFile, PRRecord
-
+from github_pr_kb.extractor import GitHubExtractor
+from github_pr_kb.models import PRFile
 
 # ---------------------------------------------------------------------------
 # Mock helpers

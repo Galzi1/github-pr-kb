@@ -5,8 +5,7 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from github_pr_kb.models import PRRecord, CommentRecord, PRFile
-
+from github_pr_kb.models import CommentRecord, PRFile, PRRecord
 
 # ---------------------------------------------------------------------------
 # PRRecord tests
