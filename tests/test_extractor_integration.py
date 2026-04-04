@@ -62,7 +62,7 @@ def pr2_file(tmp_path_factory: pytest.TempPathFactory) -> PRFile:
     cache_dir = tmp_path_factory.mktemp("integration_cache")
     extractor = GitHubExtractor(REPO, cache_dir=cache_dir)
     pr = extractor.repo.get_pull(PR_NUMBER)
-    extractor._write_cache(pr, extractor._collect_comments(pr))
+    extractor._merge_or_write(pr, extractor._collect_comments(pr))
 
     cache_file = cache_dir / f"pr-{PR_NUMBER}.json"
     assert cache_file.exists(), f"Cache file for PR #{PR_NUMBER} not found"
