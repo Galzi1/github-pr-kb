@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python -c \"import sys,json,os,subprocess;data=json.load(sys.stdin);f=data.get('tool_input',{}).get('file_path','').replace(os.sep,'/');target='src/' if ('/src/' in f or f.startswith('src/')) else ('tests/' if ('/tests/' in f or f.startswith('tests/')) else None);sys.exit(0) if not f.endswith('.py') or not target else None;r=subprocess.run(['uv','run','ruff','check',target],capture_output=True,text=True);print(r.stdout.strip()) if r.stdout.strip() else None\" 2>/dev/null || true",
+            "command": "python .claude/hooks/ruff_lint.py 2>/dev/null || true",
             "timeout": 30,
             "statusMessage": "Linting with ruff..."
           }
