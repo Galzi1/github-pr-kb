@@ -157,12 +157,33 @@ class GitHubExtractor:
             url=pr.html_url,
         )
 
-    def _merge_or_write(self, pr: PullRequest, new_comments: list[CommentRecord]) -> tuple[Path, int]:
-        """Merge new comments into an existing cache file, or write a fresh one.
+    def _merge_comments(
+        self, cache_path: Path, pr: PullRequest, new_comments: list[CommentRecord],
+    ) -> tuple[PRFile, int]:
+        """Load an existing cache file and merge net-new comments into it.
 
         Dedup is by comment_id only — edited comments keep their cached body.
         This is an accepted trade-off per CORE-05: immutability of cached entries
         keeps re-run cost flat and avoids surprise mutations to classified records.
+
+        Returns:
+            (merged_pr_file, net_new_count). Raises json.JSONDecodeError or
+            ValidationError if the cache file is corrupt.
+        """
+        existing = PRFile.model_validate(
+            json.loads(cache_path.read_text(encoding="utf-8"))
+        )
+        existing_ids = {c.comment_id for c in existing.comments}
+        net_new = [c for c in new_comments if c.comment_id not in existing_ids]
+        merged = PRFile(
+            pr=self._build_pr_record(pr),
+            comments=existing.comments + net_new,
+            extracted_at=datetime.now(timezone.utc),
+        )
+        return merged, len(net_new)
+
+    def _merge_or_write(self, pr: PullRequest, new_comments: list[CommentRecord]) -> tuple[Path, int]:
+        """Merge new comments into an existing cache file, or write a fresh one.
 
         Returns:
             (cache_path, net_new_count) where net_new_count is the number of
@@ -172,20 +193,10 @@ class GitHubExtractor:
 
         if cache_path.exists():
             try:
-                existing = PRFile.model_validate(
-                    json.loads(cache_path.read_text(encoding="utf-8"))
-                )
-                existing_ids = {c.comment_id for c in existing.comments}
-                net_new = [c for c in new_comments if c.comment_id not in existing_ids]
-                merged = PRFile(
-                    pr=self._build_pr_record(pr),
-                    comments=existing.comments + net_new,
-                    extracted_at=datetime.now(timezone.utc),
-                )
+                merged, net_new_count = self._merge_comments(cache_path, pr, new_comments)
                 self._write_cache_atomic(cache_path, merged)
-                return cache_path, len(net_new)
+                return cache_path, net_new_count
             except (json.JSONDecodeError, ValidationError):
-                # Corrupt or schema-incompatible cache file — replace with fresh data.
                 logger.warning("Corrupt cache file %s, replacing", cache_path)
 
         # Fresh write path: file missing or fell through from corrupt file handling.
