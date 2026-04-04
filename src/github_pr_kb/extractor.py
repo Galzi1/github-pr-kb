@@ -1,9 +1,9 @@
 """Extracts PR comments from GitHub API using PyGithub."""
 import json
 import re
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
-from collections.abc import Mapping
 from typing import Optional, Union
 
 from github import Auth, Github
