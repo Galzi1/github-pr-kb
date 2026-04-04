@@ -1,18 +1,26 @@
 """Extracts PR comments from GitHub API using PyGithub."""
+import contextlib
 import json
+import logging
+import os
 import re
+import tempfile
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Union
 
-from github import Auth, Github
+from github import Auth, Github, GithubRetry
 from github.IssueComment import IssueComment
 from github.PullRequest import PullRequest
 from github.PullRequestComment import PullRequestComment
+from pydantic import ValidationError
+from requests.exceptions import RetryError
 
 from github_pr_kb.config import settings
 from github_pr_kb.models import CommentRecord, PRFile, PRRecord
+
+logger = logging.getLogger(__name__)
 
 # Per D-11, D-12: Known CI/automation bots to skip
 SKIP_BOT_LOGINS = frozenset({
@@ -30,6 +38,10 @@ _SUBSTANTIVE_RE = re.compile(r"[a-zA-Z]{5,}")
 DEFAULT_CACHE_DIR = Path(".github-pr-kb/cache")
 
 REACTION_KEYS = ["+1", "-1", "laugh", "hooray", "confused", "heart", "rocket", "eyes"]
+
+
+class RateLimitExhaustedError(Exception):
+    """Raised when GitHub API retry limit is exhausted."""
 
 
 def is_noise(login: str, body: str) -> bool:
@@ -99,7 +111,7 @@ class GitHubExtractor:
 
     def __init__(self, repo_name: str, cache_dir: Path = DEFAULT_CACHE_DIR) -> None:
         self.cache_dir = cache_dir
-        client = Github(auth=Auth.Token(settings.github_token))
+        client = Github(auth=Auth.Token(settings.github_token), retry=GithubRetry(total=5))
         self.repo = client.get_repo(repo_name)
 
     def _collect_comments(self, pr: PullRequest) -> list[CommentRecord]:
@@ -115,32 +127,92 @@ class GitHubExtractor:
                 comments.append(record)
         return comments
 
-    def _write_cache(self, pr: PullRequest, comments: list[CommentRecord]) -> Path:
-        """Build a PRFile from a PR and its comments, then write it to the cache directory."""
-        pr_record = PRRecord(
+    def _write_cache_atomic(self, cache_path: Path, pr_file: PRFile) -> None:
+        """Write PRFile JSON to cache_path atomically via mkstemp + os.replace.
+
+        Creates a temp file on the same filesystem volume to ensure os.replace
+        is a true rename (not a cross-device copy). On failure, cleans up the
+        temp file and re-raises the original exception.
+        """
+        tmp_name: str | None = None
+        try:
+            tmp_fd, tmp_name = tempfile.mkstemp(dir=cache_path.parent, suffix=".tmp")
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                f.write(json.dumps(pr_file.model_dump(mode="json"), indent=2))
+            os.replace(tmp_name, str(cache_path))
+        except Exception:
+            if tmp_name is not None:
+                with contextlib.suppress(OSError):
+                    os.unlink(tmp_name)
+            raise
+
+    @staticmethod
+    def _build_pr_record(pr: PullRequest) -> PRRecord:
+        """Build a PRRecord from a live PyGithub PullRequest object."""
+        return PRRecord(
             number=pr.number,
             title=pr.title,
             body=pr.body,
             state=pr.state,
             url=pr.html_url,
         )
-        pr_file = PRFile(
-            pr=pr_record,
-            comments=comments,
+
+    def _merge_comments(
+        self, cache_path: Path, pr: PullRequest, new_comments: list[CommentRecord],
+    ) -> tuple[PRFile, int]:
+        """Load an existing cache file and merge net-new comments into it.
+
+        Dedup is by comment_id only — edited comments keep their cached body.
+        This is an accepted trade-off per CORE-05: immutability of cached entries
+        keeps re-run cost flat and avoids surprise mutations to classified records.
+
+        Returns:
+            (merged_pr_file, net_new_count). Raises json.JSONDecodeError or
+            ValidationError if the cache file is corrupt.
+        """
+        existing = PRFile.model_validate(
+            json.loads(cache_path.read_text(encoding="utf-8"))
+        )
+        existing_ids = {c.comment_id for c in existing.comments}
+        net_new = [c for c in new_comments if c.comment_id not in existing_ids]
+        merged = PRFile(
+            pr=self._build_pr_record(pr),
+            comments=existing.comments + net_new,
             extracted_at=datetime.now(timezone.utc),
         )
+        return merged, len(net_new)
+
+    def _merge_or_write(self, pr: PullRequest, new_comments: list[CommentRecord]) -> tuple[Path, int]:
+        """Merge new comments into an existing cache file, or write a fresh one.
+
+        Returns:
+            (cache_path, net_new_count) where net_new_count is the number of
+            comments actually appended (0 means no change to comment list).
+        """
         cache_path = self.cache_dir / f"pr-{pr.number}.json"
-        cache_path.write_text(
-            json.dumps(pr_file.model_dump(mode="json"), indent=2),
-            encoding="utf-8",
+
+        if cache_path.exists():
+            try:
+                merged, net_new_count = self._merge_comments(cache_path, pr, new_comments)
+                self._write_cache_atomic(cache_path, merged)
+                return cache_path, net_new_count
+            except (json.JSONDecodeError, ValidationError):
+                logger.warning("Corrupt cache file %s, replacing", cache_path)
+
+        # Fresh write path: file missing or fell through from corrupt file handling.
+        pr_file = PRFile(
+            pr=self._build_pr_record(pr),
+            comments=new_comments,
+            extracted_at=datetime.now(timezone.utc),
         )
-        return cache_path
+        self._write_cache_atomic(cache_path, pr_file)
+        return cache_path, len(new_comments)
 
     def extract(
         self,
         state: str = "all",
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
     ) -> list[Path]:
         """Extract PRs with optional state/date filters and write per-PR JSON cache files.
 
@@ -154,6 +226,10 @@ class GitHubExtractor:
 
         Returns:
             List of Paths for cache files written.
+
+        Raises:
+            RateLimitExhaustedError: When GitHub API retry exhaustion occurs mid-extraction.
+                Already-processed PRs are written to disk before this error is raised.
         """
         if since is not None:
             since = _ensure_tz_aware(since)
@@ -162,19 +238,34 @@ class GitHubExtractor:
 
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         written_paths: list[Path] = []
+        processed = 0
 
-        pulls = self.repo.get_pulls(state=state, sort="updated", direction="desc")
+        try:
+            pulls = self.repo.get_pulls(state=state, sort="updated", direction="desc")
 
-        for pr in pulls:
-            # Early-stop: PRs are sorted desc by updated_at.
-            # Once we see a PR older than since, all remaining are older too.
-            if since is not None and pr.updated_at < since:
-                break
+            for pr in pulls:
+                # Early-stop: PRs are sorted desc by updated_at.
+                # Once we see a PR older than since, all remaining are older too.
+                if since is not None and pr.updated_at < since:
+                    break
 
-            # Skip PRs updated after the until boundary (but don't stop — more may follow).
-            if until is not None and pr.updated_at > until:
-                continue
+                # Skip PRs updated after the until boundary (but don't stop — more may follow).
+                if until is not None and pr.updated_at > until:
+                    continue
 
-            written_paths.append(self._write_cache(pr, self._collect_comments(pr)))
+                comments = self._collect_comments(pr)
+                path, new_count = self._merge_or_write(pr, comments)
+                written_paths.append(path)
+                processed += 1
+                logger.info("PR #%d: %d new comments merged", pr.number, new_count)
+
+        except RetryError as exc:
+            # RetryError fires for any retry exhaustion (rate limit, network timeout, DNS).
+            # "Re-run to resume" is valid advice regardless of root cause.
+            msg = (
+                f"Extracted {processed} PRs before rate limit exhaustion. "
+                "Re-run the same command to resume."
+            )
+            raise RateLimitExhaustedError(msg) from exc
 
         return written_paths

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 260404-cv7-PLAN.md (GitHub Actions CI — quick task)
-last_updated: "2026-04-04T06:25:07.964Z"
-last_activity: 2026-04-03
+status: verifying
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-04-04T16:34:50.832Z"
+last_activity: 2026-04-04
 progress:
   total_phases: 7
-  completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 3
+  total_plans: 4
+  completed_plans: 4
   percent: 29
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Preserve and make discoverable architectural decisions, code patterns, gotchas, and domain knowledge from PR discussions before they get lost in closed threads.
-**Current focus:** Phase 02 — github-extraction-core
+**Current focus:** Phase 03 — extraction-resilience-cache
 
 ## Current Position
 
-Phase: 3
+Phase: 4
 Plan: Not started
-Status: Phase 2 complete, ready for Phase 3
-Last activity: 2026-04-04 - Completed quick task 260404-cv7: Add GitHub Actions CI for existing test suite
+Status: Phase complete — ready for verification
+Last activity: 2026-04-04
 
 Progress: [██░░░░░░░░] 29%
 
@@ -53,6 +53,7 @@ Progress: [██░░░░░░░░] 29%
 
 *Updated after each plan completion*
 | Phase 02-github-extraction-core P01 | 4 | 2 tasks | 2 files |
+| Phase 03-extraction-resilience-cache P01 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,8 @@ Recent decisions affecting current work:
 - [Phase 02-02]: is_noise() requires at least one 5+ char word — filters LGTM, emoji, +1 without explicit keyword list
 - [Phase 02-02]: SKIP_BOT_LOGINS excludes code review bots (Copilot, CodeRabbit) — they produce substantive review comments
 - [Phase 02-02]: conftest.py must set GITHUB_TOKEN at module level (not fixture) — config.py instantiates Settings() at import time
+- [Phase 03-extraction-resilience-cache]: get_pulls() moved inside try/except RetryError — mock raises on call not iteration
+- [Phase 03-extraction-resilience-cache]: Dedup by comment_id only per CORE-05 — edited comments keep cached body
 
 ### Pending Todos
 
@@ -98,6 +101,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-04-04T06:25:07.950Z
-Stopped at: Completed 260404-cv7-PLAN.md (GitHub Actions CI — quick task)
+Last session: 2026-04-04T16:09:23.601Z
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None
