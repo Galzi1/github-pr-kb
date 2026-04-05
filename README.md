@@ -20,3 +20,17 @@ This CLI tool allows you to analyze all the PRs (that got merged) in a GitHub re
 - Chroma vector DB
 - GitHub API
 - TOON (Token-Oriented Object Notation) for passing the data to the LLM
+
+## Development
+
+```bash
+uv sync --all-groups          # install dependencies including dev tools
+uv run pre-commit install     # activate the git pre-commit hook (one-time setup)
+```
+
+The pre-commit hook runs `ruff` on staged files before each commit, auto-fixing what it can. If fixes are applied, the commit is blocked so you can review and re-stage them.
+
+To run linting manually across the whole codebase:
+```bash
+uv run pre-commit run --all-files
+```
