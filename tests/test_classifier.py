@@ -8,14 +8,11 @@ import anthropic
 import json
 from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
-from pathlib import Path
 
 import pytest
 
 from github_pr_kb.models import (
-    ClassifiedComment,
     ClassifiedFile,
-    CategoryLiteral,
     PRRecord,
     PRFile,
     CommentRecord,
