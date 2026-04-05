@@ -1,0 +1,201 @@
+"""Tests for PRClassifier — scaffolded in Phase 4 Plan 01 (TDD RED).
+
+These tests will fail until Plan 02 implements PRClassifier in classifier.py.
+PRClassifier is imported inside each test function body to avoid ImportError at
+collection time (classifier.PRClassifier does not exist yet).
+"""
+import anthropic
+import json
+from datetime import datetime, timezone
+from unittest.mock import patch, MagicMock
+from pathlib import Path
+
+import pytest
+
+from github_pr_kb.models import (
+    ClassifiedComment,
+    ClassifiedFile,
+    CategoryLiteral,
+    PRRecord,
+    PRFile,
+    CommentRecord,
+)
+
+
+def make_mock_message(json_text: str) -> anthropic.types.Message:
+    """Build a minimal Anthropic Message object for mocking SDK responses."""
+    return anthropic.types.Message(
+        id="msg_test",
+        content=[anthropic.types.TextBlock(text=json_text, type="text")],
+        model="claude-3-5-haiku-latest",
+        role="assistant",
+        stop_reason="end_turn",
+        type="message",
+        usage=anthropic.types.Usage(input_tokens=120, output_tokens=40),
+    )
+
+
+@pytest.fixture
+def cache_dir_with_pr(tmp_path):
+    """Create a cache dir with a single pr-1.json containing one comment."""
+    pr_file = PRFile(
+        pr=PRRecord(
+            number=1,
+            title="Test PR",
+            state="open",
+            url="https://github.com/test/repo/pull/1",
+        ),
+        comments=[
+            CommentRecord(
+                comment_id=101,
+                comment_type="review",
+                author="testuser",
+                body="Always use retry logic when calling external APIs to handle transient failures.",
+                created_at=datetime(2026, 1, 15, tzinfo=timezone.utc),
+                url="https://github.com/test/repo/pull/1#comment-101",
+            ),
+        ],
+        extracted_at=datetime(2026, 1, 15, tzinfo=timezone.utc),
+    )
+    cache_file = tmp_path / "pr-1.json"
+    cache_file.write_text(json.dumps(pr_file.model_dump(mode="json"), indent=2))
+    return tmp_path
+
+
+def test_classify_returns_valid_category(cache_dir_with_pr):
+    """Classify a comment and assert the returned category is one of the 5 valid values."""
+    from github_pr_kb.classifier import PRClassifier
+
+    valid_categories = {"architecture_decision", "code_pattern", "gotcha", "domain_knowledge", "other"}
+    response_json = json.dumps({
+        "category": "code_pattern",
+        "confidence": 0.9,
+        "summary": "Use retry logic for external API calls to handle transient failures.",
+    })
+    mock_message = make_mock_message(response_json)
+
+    with patch("github_pr_kb.classifier.Anthropic") as MockAnthropic:
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_message
+        MockAnthropic.return_value = mock_client
+
+        classifier = PRClassifier(cache_dir=cache_dir_with_pr, api_key="sk-ant-fake")
+        result = classifier.classify_pr(1)
+
+    assert isinstance(result, ClassifiedFile)
+    assert len(result.classifications) == 1
+    classified = result.classifications[0]
+    assert classified.category in valid_categories
+
+
+def test_needs_review_flag_low_confidence(cache_dir_with_pr):
+    """When confidence < 0.75, needs_review must be True."""
+    from github_pr_kb.classifier import PRClassifier
+
+    response_json = json.dumps({
+        "category": "other",
+        "confidence": 0.6,
+        "summary": "Unclear comment.",
+    })
+    mock_message = make_mock_message(response_json)
+
+    with patch("github_pr_kb.classifier.Anthropic") as MockAnthropic:
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_message
+        MockAnthropic.return_value = mock_client
+
+        classifier = PRClassifier(cache_dir=cache_dir_with_pr, api_key="sk-ant-fake")
+        result = classifier.classify_pr(1)
+
+    assert result.classifications[0].needs_review is True
+
+
+def test_needs_review_flag_high_confidence(cache_dir_with_pr):
+    """When confidence >= 0.75, needs_review must be False."""
+    from github_pr_kb.classifier import PRClassifier
+
+    response_json = json.dumps({
+        "category": "architecture_decision",
+        "confidence": 0.85,
+        "summary": "Architectural pattern for external service calls.",
+    })
+    mock_message = make_mock_message(response_json)
+
+    with patch("github_pr_kb.classifier.Anthropic") as MockAnthropic:
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_message
+        MockAnthropic.return_value = mock_client
+
+        classifier = PRClassifier(cache_dir=cache_dir_with_pr, api_key="sk-ant-fake")
+        result = classifier.classify_pr(1)
+
+    assert result.classifications[0].needs_review is False
+
+
+def test_cache_hit_no_api_call(cache_dir_with_pr):
+    """Classifying the same PR twice should only call the API once (cache hit on second run)."""
+    from github_pr_kb.classifier import PRClassifier
+
+    response_json = json.dumps({
+        "category": "gotcha",
+        "confidence": 0.8,
+        "summary": "Use retry logic.",
+    })
+    mock_message = make_mock_message(response_json)
+
+    with patch("github_pr_kb.classifier.Anthropic") as MockAnthropic:
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_message
+        MockAnthropic.return_value = mock_client
+
+        classifier = PRClassifier(cache_dir=cache_dir_with_pr, api_key="sk-ant-fake")
+        classifier.classify_pr(1)
+        # Second call — same comment body hash should hit classification-index.json
+        classifier.classify_pr(1)
+
+    assert mock_client.messages.create.call_count == 1
+
+
+def test_classified_comment_fields(cache_dir_with_pr):
+    """ClassifiedComment must expose all required fields with correct types."""
+    from github_pr_kb.classifier import PRClassifier
+
+    response_json = json.dumps({
+        "category": "domain_knowledge",
+        "confidence": 0.92,
+        "summary": "Retry pattern for transient failures.",
+    })
+    mock_message = make_mock_message(response_json)
+
+    with patch("github_pr_kb.classifier.Anthropic") as MockAnthropic:
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_message
+        MockAnthropic.return_value = mock_client
+
+        classifier = PRClassifier(cache_dir=cache_dir_with_pr, api_key="sk-ant-fake")
+        result = classifier.classify_pr(1)
+
+    classified = result.classifications[0]
+    assert isinstance(classified.comment_id, int)
+    assert isinstance(classified.category, str)
+    assert isinstance(classified.confidence, float)
+    assert isinstance(classified.summary, str)
+    assert isinstance(classified.classified_at, datetime)
+    assert isinstance(classified.needs_review, bool)
+
+
+def test_body_hash_deterministic():
+    """The same comment body must always produce the same SHA-256 hash."""
+    from github_pr_kb.classifier import body_hash
+
+    body = "Always use retry logic when calling external APIs."
+    assert body_hash(body) == body_hash(body)
+
+
+def test_body_hash_different_bodies():
+    """Different comment bodies must produce different SHA-256 hashes."""
+    from github_pr_kb.classifier import body_hash
+
+    hash_a = body_hash("Use retry logic for external APIs.")
+    hash_b = body_hash("Avoid global state in modules.")
+    assert hash_a != hash_b

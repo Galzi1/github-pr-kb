@@ -11,8 +11,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     github_token: str
-    # Future vars added here in their respective phases:
-    # anthropic_api_key: str  (Phase 4)
+    anthropic_api_key: str | None = None  # Phase 4: required for classify command
 
 
 # Module-level instantiation: ValidationError raised on import if GITHUB_TOKEN is missing.
