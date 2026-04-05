@@ -20,6 +20,7 @@ github-pr-kb = "github_pr_kb.cli:cli"
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.2.0",
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.15.5",
