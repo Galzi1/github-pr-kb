@@ -89,7 +89,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — ClassifiedComment/ClassifiedFile models, config anthropic_api_key, test scaffolds
+- [x] 04-01-PLAN.md — ClassifiedComment/ClassifiedFile models, config anthropic_api_key, test scaffolds
 - [ ] 04-02-PLAN.md — PRClassifier implementation with SHA-256 dedup, atomic writes, and all tests green
 
 ### Phase 5: KB Generator
@@ -139,7 +139,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 1. Project Foundation | 1/1 | Complete | 2026-03-10 |
 | 2. GitHub Extraction Core | 2/2 | Complete | 2026-04-03 |
 | 3. Extraction Resilience & Cache | 1/1 | Complete | 2026-04-04 |
-| 4. Claude Classifier | 0/2 | Not started | - |
+| 4. Claude Classifier | 1/2 | In Progress|  |
 | 5. KB Generator | 0/TBD | Not started | - |
 | 6. CLI Integration | 0/TBD | Not started | - |
 | 7. GitHub Action + README | 0/TBD | Not started | - |
