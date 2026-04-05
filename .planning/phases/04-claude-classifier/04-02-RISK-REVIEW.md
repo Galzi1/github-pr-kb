@@ -100,11 +100,11 @@
 
 ### 3c. Failure of Imagination Check
 
-**Scenario: Classification-index.json corruption.** If the JSON file is corrupted (e.g., truncated write despite atomic pattern — possible on network-mounted Windows drives with aggressive caching), the classifier will fall back to an empty dict on `JSONDecodeError` and **re-classify every comment**, incurring the full API cost again. The plan handles this gracefully (empty dict fallback), but doesn't log a WARNING when it happens — the user won't know their index was lost.
+**Scenario: Classification-index.json corruption.** If the JSON file is corrupted (e.g., truncated write despite atomic pattern — possible on network-mounted Windows drives with aggressive caching), the classifier will fall back to an empty dict on `JSONDecodeError` and **re-classify every comment**, incurring the full API cost again. The plan handles this gracefully (empty dict fallback) and now logs a WARNING when this occurs (R5 mitigation added after initial review).
 
 **Scenario: Claude model deprecation.** The plan hardcodes `claude-3-5-haiku-latest`. If Anthropic deprecates this model alias, the classifier will fail on every API call. The `latest` suffix mitigates this somewhat, but model naming conventions have changed before. The `model` parameter on `__init__` makes this configurable, which is good.
 
-**Scenario: Extremely long comment bodies.** The plan sends `comment.body` as the entire user message. If a PR has a comment with 100K characters (e.g., an auto-generated changelog), this will consume significant input tokens and may hit context limits. No truncation or size guard exists.
+**Scenario: Extremely long comment bodies.** The plan now includes a body truncation guard at 10,000 characters before the API call (R4 mitigation added after initial review), preventing excessive token consumption and context limit errors.
 
 ---
 

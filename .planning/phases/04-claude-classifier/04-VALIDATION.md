@@ -17,7 +17,7 @@ created: 2026-04-05
 
 | Property | Value |
 |----------|-------|
-| **Framework** | pytest 8.x |
+| **Framework** | pytest >=9.0.2 |
 | **Config file** | pyproject.toml [tool.pytest.ini_options] |
 | **Quick run command** | `.venv/Scripts/python.exe -m pytest tests/ -x -q` |
 | **Full suite command** | `.venv/Scripts/python.exe -m pytest tests/ -v` |
