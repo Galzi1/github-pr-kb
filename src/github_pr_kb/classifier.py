@@ -17,7 +17,6 @@ from github_pr_kb.models import (
     ClassifiedFile,
     CommentRecord,
     PRFile,
-    PRRecord,
 )
 
 logger = logging.getLogger(__name__)

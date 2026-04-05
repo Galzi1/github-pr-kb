@@ -4,18 +4,18 @@ These tests will fail until Plan 02 implements PRClassifier in classifier.py.
 PRClassifier is imported inside each test function body to avoid ImportError at
 collection time (classifier.PRClassifier does not exist yet).
 """
-import anthropic
 import json
 from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+import anthropic
 import pytest
 
 from github_pr_kb.models import (
     ClassifiedFile,
-    PRRecord,
-    PRFile,
     CommentRecord,
+    PRFile,
+    PRRecord,
 )
 
 
