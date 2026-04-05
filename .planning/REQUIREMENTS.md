@@ -17,7 +17,7 @@
 
 - [x] **CLASS-01**: User can classify PR comments into categories: architecture_decision, code_pattern, gotcha, domain_knowledge, other
 - [x] **CLASS-02**: Each classification includes a confidence score; items below 75% threshold are flagged for review
-- [ ] **CLASS-03**: Identical comments (matched by content hash) reuse cached classifications to minimize Claude API costs
+- [x] **CLASS-03**: Identical comments (matched by content hash) reuse cached classifications to minimize Claude API costs
 - [x] **CLASS-04**: Classification output includes: original comment, category, confidence score, and one-line summary
 
 ### Knowledge Base
@@ -84,7 +84,7 @@
 | CORE-05 | Phase 3 | Complete |
 | CLASS-01 | Phase 4 | Complete |
 | CLASS-02 | Phase 4 | Complete |
-| CLASS-03 | Phase 4 | Pending |
+| CLASS-03 | Phase 4 | Complete |
 | CLASS-04 | Phase 4 | Complete |
 | KB-01 | Phase 5 | Pending |
 | KB-02 | Phase 5 | Pending |

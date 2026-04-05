@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Project Foundation** - uv environment, pyproject.toml, Pydantic types, and env configuration
 - [x] **Phase 2: GitHub Extraction Core** - basic auth, fetching PR comments, filtering by state and date range
 - [x] **Phase 3: Extraction Resilience & Cache** - rate-limit backoff, local cache persistence, idempotency
-- [ ] **Phase 4: Claude Classifier** - classification, confidence scoring, and cost caching
+- [x] **Phase 4: Claude Classifier** - classification, confidence scoring, and cost caching (completed 2026-04-05)
 - [ ] **Phase 5: KB Generator** - markdown files with frontmatter, index file, and incremental merge
 - [ ] **Phase 6: CLI Integration** - Click commands with --help and actionable error messages
 - [ ] **Phase 7: GitHub Action + README** - workflow YAML, cost guard, state persistence, and README
@@ -90,7 +90,7 @@ Plans:
 
 Plans:
 - [x] 04-01-PLAN.md — ClassifiedComment/ClassifiedFile models, config anthropic_api_key, test scaffolds
-- [ ] 04-02-PLAN.md — PRClassifier implementation with SHA-256 dedup, atomic writes, and all tests green
+- [x] 04-02-PLAN.md — PRClassifier implementation with SHA-256 dedup, atomic writes, and all tests green
 
 ### Phase 5: KB Generator
 **Goal**: A user can generate an organized markdown knowledge base from classified comments, and re-running generation does not duplicate existing content.
@@ -139,7 +139,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 1. Project Foundation | 1/1 | Complete | 2026-03-10 |
 | 2. GitHub Extraction Core | 2/2 | Complete | 2026-04-03 |
 | 3. Extraction Resilience & Cache | 1/1 | Complete | 2026-04-04 |
-| 4. Claude Classifier | 1/2 | In Progress|  |
+| 4. Claude Classifier | 2/2 | Complete   | 2026-04-05 |
 | 5. KB Generator | 0/TBD | Not started | - |
 | 6. CLI Integration | 0/TBD | Not started | - |
 | 7. GitHub Action + README | 0/TBD | Not started | - |
