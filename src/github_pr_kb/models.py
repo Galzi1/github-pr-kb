@@ -35,3 +35,29 @@ class PRFile(BaseModel):
     pr: PRRecord
     comments: list[CommentRecord]
     extracted_at: datetime
+
+
+# Phase 4: Classification types (CLASS-01, CLASS-02, CLASS-04)
+
+CategoryLiteral = Literal[
+    "architecture_decision", "code_pattern", "gotcha", "domain_knowledge", "other"
+]
+
+
+class ClassifiedComment(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    comment_id: int
+    category: CategoryLiteral
+    confidence: float
+    summary: str
+    classified_at: datetime
+    needs_review: bool  # True when confidence < 0.75 (per D-06)
+
+
+class ClassifiedFile(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    pr: PRRecord
+    classifications: list[ClassifiedComment]
+    classified_at: datetime

@@ -25,6 +25,7 @@ Preserve and make discoverable the architectural decisions, code patterns, gotch
 
 - [x] Extract PR comments from a GitHub repository via API — Validated in Phase 02: GitHub Extraction Core
 - [x] Authenticated access via PAT (GITHUB_TOKEN) — Validated in Phase 02: GitHub Extraction Core
+- [x] Classify comments into topics using AI (architecture decisions, code patterns, gotchas, domain knowledge) — Validated in Phase 04: Claude Classifier
 
 ### Active
 
@@ -73,4 +74,4 @@ Preserve and make discoverable the architectural decisions, code patterns, gotch
 | Single repo scope for v1 | Simpler to build and test, can expand later if needed | — Pending |
 
 ---
-*Last updated: 2026-04-03 — Phase 02 complete: GitHub extraction core implemented (auth, PR fetch, comment filtering, JSON cache)*
+*Last updated: 2026-04-05 — Phase 04 complete: Claude classifier implemented (CategoryLiteral, ClassifiedComment/File models, PRClassifier with SHA-256 dedup, atomic writes, needs_review flagging)*
