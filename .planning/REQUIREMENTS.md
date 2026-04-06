@@ -29,10 +29,10 @@
 
 ### CLI
 
-- [ ] **CLI-01**: User can run `github-pr-kb extract --repo owner/name` to extract and cache PR comments
-- [ ] **CLI-02**: User can run `github-pr-kb classify` to classify cached comments via Claude
-- [ ] **CLI-03**: User can run `github-pr-kb generate` to write the markdown knowledge base from classifications
-- [ ] **CLI-04**: All commands provide clear `--help` output and actionable error messages
+- [x] **CLI-01**: User can run `github-pr-kb extract --repo owner/name` to extract and cache PR comments
+- [x] **CLI-02**: User can run `github-pr-kb classify` to classify cached comments via Claude
+- [x] **CLI-03**: User can run `github-pr-kb generate` to write the markdown knowledge base from classifications
+- [x] **CLI-04**: All commands provide clear `--help` output and actionable error messages
 
 ### GitHub Action
 
@@ -90,10 +90,10 @@
 | KB-02 | Phase 5 | Complete |
 | KB-03 | Phase 5 | Complete |
 | KB-04 | Phase 5 | Complete |
-| CLI-01 | Phase 6 | Pending |
-| CLI-02 | Phase 6 | Pending |
-| CLI-03 | Phase 6 | Pending |
-| CLI-04 | Phase 6 | Pending |
+| CLI-01 | Phase 6 | Complete |
+| CLI-02 | Phase 6 | Complete |
+| CLI-03 | Phase 6 | Complete |
+| CLI-04 | Phase 6 | Complete |
 | ACTION-01 | Phase 7 | Pending |
 | ACTION-02 | Phase 7 | Pending |
 | ACTION-03 | Phase 7 | Pending |
