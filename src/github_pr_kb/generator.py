@@ -244,6 +244,125 @@ class KBGenerator:
         return "\n".join(body_parts) + "\n"
 
     # ------------------------------------------------------------------
+    # Index generation (D-11 through D-14)
+    # ------------------------------------------------------------------
+
+    def _generate_index(self) -> None:
+        """Regenerate kb/INDEX.md from all existing .md files on disk (D-14).
+
+        Scans all .md files in per-category subdirectories (excluding INDEX.md itself),
+        parses each file's YAML frontmatter to extract category, needs_review, and the
+        first # heading as the summary text.  Groups entries by category (sorted
+        alphabetically), builds INDEX.md content, and writes it atomically.
+
+        Files with unparseable frontmatter are skipped with a warning (Pitfall 5).
+        When the KB is empty the index is still written with just the title (R3 mitigation).
+        """
+        # category -> list of (filename_stem, relative_path_str, summary, needs_review)
+        entries: dict[str, list[tuple[str, str, str, bool]]] = {}
+
+        for md_file in sorted(self._kb_dir.rglob("*.md")):
+            # Skip INDEX.md itself — it lives at the top level
+            if md_file.name == "INDEX.md":
+                continue
+
+            # Determine the relative path from kb_dir (e.g. "gotcha/avoid-circular.md")
+            try:
+                rel_path = md_file.relative_to(self._kb_dir)
+            except ValueError:
+                continue
+
+            # Only include files one level deep (category/slug.md), not nested deeper
+            if len(rel_path.parts) != 2:
+                continue
+
+            category_slug = rel_path.parts[0]
+
+            # Parse YAML frontmatter between first and second --- delimiters
+            try:
+                text = md_file.read_text(encoding="utf-8")
+            except OSError as exc:
+                logger.warning("Could not read article %s for index: %s — skipping", md_file.name, exc)
+                continue
+
+            frontmatter_fields, summary = self._parse_article_metadata(text)
+            if frontmatter_fields is None:
+                logger.warning(
+                    "Could not parse frontmatter in %s — skipping from index", md_file.name
+                )
+                continue
+
+            # R3 mitigation: needs_review is stored as YAML string "true"/"false"
+            raw_needs_review = frontmatter_fields.get("needs_review", "false")
+            needs_review = raw_needs_review.strip().lower() == "true"
+
+            entries.setdefault(category_slug, []).append(
+                (md_file.stem, str(rel_path).replace("\\", "/"), summary, needs_review)
+            )
+
+        # Build INDEX.md content
+        lines: list[str] = ["# Knowledge Base Index", ""]
+
+        for category_slug in sorted(entries.keys()):
+            display_name = category_slug.replace("_", " ").title()
+            category_entries = sorted(entries[category_slug], key=lambda e: e[0])
+            count = len(category_entries)
+
+            lines.append(f"## {display_name} ({count})")
+            lines.append("")
+
+            for _stem, rel_path_str, summary, needs_review in category_entries:
+                entry_line = f"- [{summary}]({rel_path_str})"
+                if needs_review:
+                    entry_line += " [review]"
+                lines.append(entry_line)
+
+            lines.append("")
+
+        index_content = "\n".join(lines)
+
+        self._kb_dir.mkdir(parents=True, exist_ok=True)
+        _write_atomic(self._kb_dir / "INDEX.md", index_content)
+
+    def _parse_article_metadata(
+        self, text: str
+    ) -> tuple[dict[str, str] | None, str]:
+        """Parse YAML frontmatter and first # heading from article text.
+
+        Returns (frontmatter_dict, summary_text).  frontmatter_dict is None if
+        the frontmatter delimiters are not found or malformed.  summary_text is
+        the first # heading found after the frontmatter, or empty string if absent.
+        """
+        lines = text.splitlines()
+        if not lines or lines[0].strip() != "---":
+            return None, ""
+
+        closing_idx: int | None = None
+        for i, line in enumerate(lines[1:], start=1):
+            if line.strip() == "---":
+                closing_idx = i
+                break
+
+        if closing_idx is None:
+            return None, ""
+
+        frontmatter_lines = lines[1:closing_idx]
+        fields: dict[str, str] = {}
+        for fm_line in frontmatter_lines:
+            if ":" in fm_line:
+                key, _, value = fm_line.partition(":")
+                fields[key.strip()] = value.strip()
+
+        # Find first # heading after frontmatter
+        summary = ""
+        for line in lines[closing_idx + 1 :]:
+            if line.startswith("# "):
+                summary = line[2:].strip()
+                break
+
+        return fields, summary
+
+    # ------------------------------------------------------------------
     # Main generation entry point
     # ------------------------------------------------------------------
 
@@ -340,4 +459,5 @@ class KBGenerator:
                 self._written += 1
 
         self._save_manifest()
+        self._generate_index()
         return GenerateResult(written=self._written, skipped=self._skipped, failed=self._failed)
