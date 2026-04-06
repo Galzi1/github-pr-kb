@@ -71,4 +71,4 @@ Preserve and make discoverable the architectural decisions, code patterns, gotch
 | Single repo scope for v1 | Simpler to build and test, can expand later if needed | — Pending |
 
 ---
-*Last updated: 2026-04-06 — Phase 05 complete: KB Generator implemented (KBGenerator class, per-category markdown articles with YAML frontmatter, manifest-based incremental dedup, INDEX.md generation with category grouping and [review] markers)*
+*Last updated: 2026-04-06 — Phase 06 complete: CLI Integration implemented (Click group with extract, classify, generate, run commands; lazy imports for env-var safety; colored summaries; actionable error messages; 12 CliRunner tests)*
