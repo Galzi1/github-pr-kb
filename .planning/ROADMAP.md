@@ -105,7 +105,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — KBGenerator core: slugify, article generation with frontmatter, manifest-based incremental dedup
+- [x] 05-01-PLAN.md — KBGenerator core: slugify, article generation with frontmatter, manifest-based incremental dedup
 - [ ] 05-02-PLAN.md — Index generation: kb/INDEX.md with category groupings, counts, summaries, and review markers
 
 ### Phase 6: CLI Integration
@@ -144,6 +144,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 2. GitHub Extraction Core | 2/2 | Complete | 2026-04-03 |
 | 3. Extraction Resilience & Cache | 1/1 | Complete | 2026-04-04 |
 | 4. Claude Classifier | 2/2 | Complete   | 2026-04-05 |
-| 5. KB Generator | 0/2 | Planning complete | - |
+| 5. KB Generator | 1/2 | In Progress|  |
 | 6. CLI Integration | 0/TBD | Not started | - |
 | 7. GitHub Action + README | 0/TBD | Not started | - |
