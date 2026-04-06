@@ -22,7 +22,7 @@ from github_pr_kb.models import (
 logger = logging.getLogger(__name__)
 
 DEFAULT_CACHE_DIR = Path(".github-pr-kb/cache")
-DEFAULT_MODEL = "claude-3-5-haiku-latest"
+DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 
 VALID_CATEGORIES: set[str] = {
     "architecture_decision",

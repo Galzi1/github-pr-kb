@@ -17,7 +17,14 @@
       "Bash(git commit:*)",
       "Bash(git hook:*)",
       "Bash(rtk uv:*)",
-      "Bash(rtk ruff:*)"
+      "Bash(rtk ruff:*)",
+      "Bash(gh api:*)",
+      "Skill(hookify:configure)",
+      "Bash(python -c ':*)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(rtk ls:*)",
+      "Bash(gh --version)",
+      "Bash(rm:*)"
     ]
   },
   "enabledPlugins": {
