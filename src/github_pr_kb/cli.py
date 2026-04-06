@@ -14,7 +14,6 @@ from pathlib import Path
 
 import click
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -101,7 +100,7 @@ def _run_classify() -> str:
         from github_pr_kb.classifier import PRClassifier
 
         classifier = PRClassifier()
-    except ValueError as exc:
+    except ValueError:
         # Missing ANTHROPIC_API_KEY — classifier.__init__ raises ValueError
         raise click.ClickException(
             "Configuration error -- missing required environment variable.\n"

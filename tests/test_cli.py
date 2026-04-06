@@ -3,7 +3,7 @@
 All tests use click.testing.CliRunner with mix_stderr=False to keep
 stdout and stderr separate for independent assertion.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
