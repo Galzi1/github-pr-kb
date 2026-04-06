@@ -24,7 +24,7 @@ def make_mock_message(json_text: str) -> anthropic.types.Message:
     return anthropic.types.Message(
         id="msg_test",
         content=[anthropic.types.TextBlock(text=json_text, type="text")],
-        model="claude-3-5-haiku-latest",
+        model="claude-haiku-4-5-20251001",
         role="assistant",
         stop_reason="end_turn",
         type="message",
