@@ -75,12 +75,14 @@ class PRClassifier:
     def __init__(
         self,
         cache_dir: Path = DEFAULT_CACHE_DIR,
-        model: str = DEFAULT_MODEL,
+        model: str | None = None,
         api_key: str | None = None,
     ) -> None:
+        from github_pr_kb.config import settings
         if api_key is None:
-            from github_pr_kb.config import settings
             api_key = settings.anthropic_api_key
+        if model is None:
+            model = settings.anthropic_model or DEFAULT_MODEL
         if api_key is None:
             raise ValueError(
                 "ANTHROPIC_API_KEY is required for classification. "

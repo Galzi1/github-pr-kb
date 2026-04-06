@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     github_token: str
     anthropic_api_key: str | None = None  # Phase 4: required for classify command
+    anthropic_model: str | None = None  # Override default classifier model via ANTHROPIC_MODEL
     kb_output_dir: str = "kb"  # Phase 5: KB output directory (D-17)
 
 
