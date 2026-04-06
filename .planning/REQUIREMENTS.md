@@ -22,17 +22,17 @@
 
 ### Knowledge Base
 
-- [ ] **KB-01**: User can generate a markdown knowledge base organized into per-category subdirectories
-- [ ] **KB-02**: Each KB article includes YAML frontmatter: PR link, author, date, category, confidence score
-- [ ] **KB-03**: Generator produces an index file listing all topics with article counts and summaries
-- [ ] **KB-04**: Incremental KB generation merges new content without duplicating existing entries (PR+comment ID dedup)
+- [x] **KB-01**: User can generate a markdown knowledge base organized into per-category subdirectories
+- [x] **KB-02**: Each KB article includes YAML frontmatter: PR link, author, date, category, confidence score
+- [x] **KB-03**: Generator produces an index file listing all topics with article counts and summaries
+- [x] **KB-04**: Incremental KB generation merges new content without duplicating existing entries (PR+comment ID dedup)
 
 ### CLI
 
-- [ ] **CLI-01**: User can run `github-pr-kb extract --repo owner/name` to extract and cache PR comments
-- [ ] **CLI-02**: User can run `github-pr-kb classify` to classify cached comments via Claude
-- [ ] **CLI-03**: User can run `github-pr-kb generate` to write the markdown knowledge base from classifications
-- [ ] **CLI-04**: All commands provide clear `--help` output and actionable error messages
+- [x] **CLI-01**: User can run `github-pr-kb extract --repo owner/name` to extract and cache PR comments
+- [x] **CLI-02**: User can run `github-pr-kb classify` to classify cached comments via Claude
+- [x] **CLI-03**: User can run `github-pr-kb generate` to write the markdown knowledge base from classifications
+- [x] **CLI-04**: All commands provide clear `--help` output and actionable error messages
 
 ### GitHub Action
 
@@ -86,14 +86,14 @@
 | CLASS-02 | Phase 4 | Complete |
 | CLASS-03 | Phase 4 | Complete |
 | CLASS-04 | Phase 4 | Complete |
-| KB-01 | Phase 5 | Pending |
-| KB-02 | Phase 5 | Pending |
-| KB-03 | Phase 5 | Pending |
-| KB-04 | Phase 5 | Pending |
-| CLI-01 | Phase 6 | Pending |
-| CLI-02 | Phase 6 | Pending |
-| CLI-03 | Phase 6 | Pending |
-| CLI-04 | Phase 6 | Pending |
+| KB-01 | Phase 5 | Complete |
+| KB-02 | Phase 5 | Complete |
+| KB-03 | Phase 5 | Complete |
+| KB-04 | Phase 5 | Complete |
+| CLI-01 | Phase 6 | Complete |
+| CLI-02 | Phase 6 | Complete |
+| CLI-03 | Phase 6 | Complete |
+| CLI-04 | Phase 6 | Complete |
 | ACTION-01 | Phase 7 | Pending |
 | ACTION-02 | Phase 7 | Pending |
 | ACTION-03 | Phase 7 | Pending |

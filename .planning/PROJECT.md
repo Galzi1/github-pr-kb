@@ -26,16 +26,13 @@ Preserve and make discoverable the architectural decisions, code patterns, gotch
 - [x] Extract PR comments from a GitHub repository via API — Validated in Phase 02: GitHub Extraction Core
 - [x] Authenticated access via PAT (GITHUB_TOKEN) — Validated in Phase 02: GitHub Extraction Core
 - [x] Classify comments into topics using AI (architecture decisions, code patterns, gotchas, domain knowledge) — Validated in Phase 04: Claude Classifier
+- [x] Generate markdown files organized by topic — Validated in Phase 05: KB Generator
+- [x] Create an index file that summarizes the content in each topic file — Validated in Phase 05: KB Generator
 
 ### Active
 
-- [ ] Extract PR comments from a GitHub repository via API
-- [ ] Classify comments into topics using AI (architecture decisions, code patterns, gotchas, domain knowledge)
-- [ ] Generate markdown files organized by topic
-- [ ] Create an index file that summarizes the content in each topic file
 - [ ] CLI tool for manual extraction of specific PRs
 - [ ] GitHub Action for automated extraction workflow
-- [ ] Basic topic categorization that's good enough for MVP
 
 ### Out of Scope
 
@@ -74,4 +71,4 @@ Preserve and make discoverable the architectural decisions, code patterns, gotch
 | Single repo scope for v1 | Simpler to build and test, can expand later if needed | — Pending |
 
 ---
-*Last updated: 2026-04-05 — Phase 04 complete: Claude classifier implemented (CategoryLiteral, ClassifiedComment/File models, PRClassifier with SHA-256 dedup, atomic writes, needs_review flagging)*
+*Last updated: 2026-04-06 — Phase 06 complete: CLI Integration implemented (Click group with extract, classify, generate, run commands; lazy imports for env-var safety; colored summaries; actionable error messages; 12 CliRunner tests)*

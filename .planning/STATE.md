@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-04-05T10:38:37.947Z"
-last_activity: 2026-04-05
+stopped_at: Completed 06-cli-integration-01-PLAN.md
+last_updated: "2026-04-06T14:09:13.169Z"
+last_activity: 2026-04-06
 progress:
   total_phases: 7
-  completed_phases: 4
-  total_plans: 6
-  completed_plans: 6
+  completed_phases: 6
+  total_plans: 9
+  completed_plans: 9
   percent: 29
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Preserve and make discoverable architectural decisions, code patterns, gotchas, and domain knowledge from PR discussions before they get lost in closed threads.
-**Current focus:** Phase 04 — claude-classifier
+**Current focus:** Phase 06 — cli-integration
 
 ## Current Position
 
-Phase: 5
+Phase: 7
 Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-04-05
+Last activity: 2026-04-06
 
 Progress: [██░░░░░░░░] 29%
 
@@ -56,6 +56,9 @@ Progress: [██░░░░░░░░] 29%
 | Phase 03-extraction-resilience-cache P01 | 3 | 2 tasks | 2 files |
 | Phase 04-claude-classifier P01 | 3 | 3 tasks | 4 files |
 | Phase 04-claude-classifier P02 | 2 | 2 tasks | 1 files |
+| Phase 05-kb-generator P01 | 6 | 2 tasks | 3 files |
+| Phase 05-kb-generator P02 | 4 min | 1 tasks | 2 files |
+| Phase 06-cli-integration P01 | 5 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -88,6 +91,14 @@ Recent decisions affecting current work:
 - [Phase 04-claude-classifier]: body_hash is public function (not _body_hash) — tests import it directly from classifier module
 - [Phase 04-claude-classifier]: classify_pr returns ClassifiedFile (not list[ClassifiedComment]) — tests are authoritative over plan prose
 - [Phase 04-claude-classifier]: PRClassifier.__init__ takes explicit api_key parameter — falls back to settings.anthropic_api_key if None
+- [Phase 05-kb-generator]: Manifest keys stored as str(comment_id) for JSON round-trip consistency — int lookup would always miss after json.loads
+- [Phase 05-kb-generator]: _write_atomic copied into generator.py (not imported from classifier.py) to avoid cross-module coupling
+- [Phase 05-kb-generator]: settings imported inside KBGenerator.__init__ to prevent import-time ValidationError during tests
+- [Phase 05-kb-generator]: needs_review parsed as string comparison to avoid bool coercion bugs (R3 mitigation)
+- [Phase 05-kb-generator]: INDEX.md produced even when KB is empty — R3 mitigation for empty-run robustness
+- [Phase 06-cli-integration]: Lazy imports inside command bodies prevent --help from crashing when GITHUB_TOKEN is missing
+- [Phase 06-cli-integration]: PRClassifier.print_summary suppressed via monkey-patch before classify_all() to prevent duplicate stdout output
+- [Phase 06-cli-integration]: CliRunner() used without mix_stderr= (removed in Click 8.2); stderr always separate in Click 8.3.x
 
 ### Pending Todos
 
@@ -106,6 +117,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-04-05T10:33:28.406Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-04-06T13:07:44.748Z
+Stopped at: Completed 06-cli-integration-01-PLAN.md
 Resume file: None
