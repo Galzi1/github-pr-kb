@@ -536,3 +536,144 @@ def test_other_category_included(tmp_path: Path) -> None:
     assert (kb_dir / "other").is_dir()
     articles = list((kb_dir / "other").glob("*.md"))
     assert len(articles) == 1
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (Plan 02): Index generation tests
+# ---------------------------------------------------------------------------
+
+
+def test_index_file_created(make_classified_file: Path, tmp_path: Path) -> None:
+    """After generate_all(), kb_dir/INDEX.md must exist (D-11)."""
+    from github_pr_kb.generator import KBGenerator
+
+    kb_dir = tmp_path / "kb"
+    gen = KBGenerator(cache_dir=make_classified_file, kb_dir=kb_dir)
+    gen.generate_all()
+    assert (kb_dir / "INDEX.md").exists()
+
+
+def test_index_grouped_by_category(make_classified_file: Path, tmp_path: Path) -> None:
+    """INDEX.md contains '## Gotcha (1)' heading for a single gotcha article (D-12)."""
+    from github_pr_kb.generator import KBGenerator
+
+    kb_dir = tmp_path / "kb"
+    gen = KBGenerator(cache_dir=make_classified_file, kb_dir=kb_dir)
+    gen.generate_all()
+    content = (kb_dir / "INDEX.md").read_text(encoding="utf-8")
+    assert "## Gotcha (1)" in content
+
+
+def test_index_review_marker(tmp_path: Path) -> None:
+    """An article with needs_review=True has '[review]' on its index entry line (D-13)."""
+    from github_pr_kb.generator import KBGenerator
+
+    pr = PRRecord(
+        number=5,
+        title="Low Confidence Review PR",
+        state="open",
+        url="https://github.com/test/repo/pull/5",
+    )
+    comment = CommentRecord(
+        comment_id=501,
+        comment_type="issue",
+        author="frank",
+        body="This might be a gotcha worth reviewing.",
+        created_at=datetime(2026, 4, 1, tzinfo=timezone.utc),
+        url="https://github.com/test/repo/pull/5#comment-501",
+    )
+    pr_file = PRFile(pr=pr, comments=[comment], extracted_at=datetime(2026, 4, 1, tzinfo=timezone.utc))
+    (tmp_path / "pr-5.json").write_text(
+        json.dumps(pr_file.model_dump(mode="json"), indent=2), encoding="utf-8"
+    )
+    classified_file = ClassifiedFile(
+        pr=pr,
+        classifications=[
+            ClassifiedComment(
+                comment_id=501,
+                category="gotcha",
+                confidence=0.60,
+                summary="Low confidence gotcha needs human review",
+                classified_at=datetime(2026, 4, 1, tzinfo=timezone.utc),
+                needs_review=True,
+            )
+        ],
+        classified_at=datetime(2026, 4, 1, tzinfo=timezone.utc),
+    )
+    (tmp_path / "classified-pr-5.json").write_text(
+        json.dumps(classified_file.model_dump(mode="json"), indent=2), encoding="utf-8"
+    )
+
+    kb_dir = tmp_path / "kb"
+    gen = KBGenerator(cache_dir=tmp_path, kb_dir=kb_dir)
+    gen.generate_all()
+
+    content = (kb_dir / "INDEX.md").read_text(encoding="utf-8")
+    # The entry line for this article must contain [review]
+    lines_with_review = [line for line in content.splitlines() if "[review]" in line]
+    assert len(lines_with_review) >= 1
+
+
+def test_index_regenerated_on_rerun(make_classified_file: Path, tmp_path: Path) -> None:
+    """Calling generate_all() twice produces identical INDEX.md content (D-14)."""
+    from github_pr_kb.generator import KBGenerator
+
+    kb_dir = tmp_path / "kb"
+
+    gen1 = KBGenerator(cache_dir=make_classified_file, kb_dir=kb_dir)
+    gen1.generate_all()
+    content1 = (kb_dir / "INDEX.md").read_text(encoding="utf-8")
+
+    gen2 = KBGenerator(cache_dir=make_classified_file, kb_dir=kb_dir)
+    gen2.generate_all()
+    content2 = (kb_dir / "INDEX.md").read_text(encoding="utf-8")
+
+    assert content1 == content2
+
+
+def test_index_multiple_categories(make_two_classified_files: Path, tmp_path: Path) -> None:
+    """INDEX.md has two ## headings when articles span two categories."""
+    from github_pr_kb.generator import KBGenerator
+
+    kb_dir = tmp_path / "kb"
+    gen = KBGenerator(cache_dir=make_two_classified_files, kb_dir=kb_dir)
+    gen.generate_all()
+
+    content = (kb_dir / "INDEX.md").read_text(encoding="utf-8")
+    assert "## Gotcha (1)" in content
+    assert "## Code Pattern (1)" in content
+
+
+def test_index_entry_has_summary_and_link(make_classified_file: Path, tmp_path: Path) -> None:
+    """Each index entry is a markdown link of the form '- [summary](category/slug.md)'."""
+    import re as _re
+    from github_pr_kb.generator import KBGenerator
+
+    kb_dir = tmp_path / "kb"
+    gen = KBGenerator(cache_dir=make_classified_file, kb_dir=kb_dir)
+    gen.generate_all()
+
+    content = (kb_dir / "INDEX.md").read_text(encoding="utf-8")
+    # Match lines like: - [some text](gotcha/some-slug.md)
+    link_pattern = _re.compile(r"^- \[.+\]\(.+/.+\.md\)", _re.MULTILINE)
+    matches = link_pattern.findall(content)
+    assert len(matches) >= 1
+
+
+def test_index_empty_kb(tmp_path: Path) -> None:
+    """When no articles exist, INDEX.md is produced with title but no ## category headings (R3 mitigation)."""
+    from github_pr_kb.generator import KBGenerator
+
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    kb_dir = tmp_path / "kb"
+
+    gen = KBGenerator(cache_dir=cache_dir, kb_dir=kb_dir)
+    gen.generate_all()
+
+    index_path = kb_dir / "INDEX.md"
+    assert index_path.exists()
+    content = index_path.read_text(encoding="utf-8")
+    assert "# Knowledge Base Index" in content
+    # No category headings when KB is empty
+    assert "## " not in content
