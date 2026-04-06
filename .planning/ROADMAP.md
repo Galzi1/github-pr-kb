@@ -109,7 +109,7 @@ Plans:
 - [x] 05-02-PLAN.md — Index generation: kb/INDEX.md with category groupings, counts, summaries, and review markers
 
 ### Phase 6: CLI Integration
-**Goal**: A user can drive the full extract → classify → generate pipeline through named CLI commands with clear help text and actionable error messages.
+**Goal**: A user can drive the full extract -> classify -> generate pipeline through named CLI commands with clear help text and actionable error messages.
 **Depends on**: Phase 5
 **Requirements**: CLI-01, CLI-02, CLI-03, CLI-04
 **Success Criteria** (what must be TRUE):
@@ -119,7 +119,10 @@ Plans:
   4. Every command responds to `--help` with a description, all options listed, and example usage
   5. Errors (missing token, bad repo name, API failure) print a human-readable message pointing to the fix, not a raw traceback
   6. Tests covering this phase's components pass (mocked external APIs where applicable)
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 06-01-PLAN.md — Click CLI: extract, classify, generate, run commands with lazy imports, colored output, CliRunner tests
 
 ### Phase 7: GitHub Action + README
 **Goal**: A repository maintainer can add a provided workflow file and have PR comments automatically extracted and the KB updated on a schedule, with no wasted API calls when nothing is new, and a new user can get from zero to a generated KB by following the README alone.
@@ -145,5 +148,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 3. Extraction Resilience & Cache | 1/1 | Complete | 2026-04-04 |
 | 4. Claude Classifier | 2/2 | Complete   | 2026-04-05 |
 | 5. KB Generator | 2/2 | Complete   | 2026-04-06 |
-| 6. CLI Integration | 0/TBD | Not started | - |
+| 6. CLI Integration | 0/1 | Not started | - |
 | 7. GitHub Action + README | 0/TBD | Not started | - |
