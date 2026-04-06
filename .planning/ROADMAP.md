@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: GitHub Extraction Core** - basic auth, fetching PR comments, filtering by state and date range
 - [x] **Phase 3: Extraction Resilience & Cache** - rate-limit backoff, local cache persistence, idempotency
 - [x] **Phase 4: Claude Classifier** - classification, confidence scoring, and cost caching (completed 2026-04-05)
-- [ ] **Phase 5: KB Generator** - markdown files with frontmatter, index file, and incremental merge
+- [x] **Phase 5: KB Generator** - markdown files with frontmatter, index file, and incremental merge (completed 2026-04-06)
 - [ ] **Phase 6: CLI Integration** - Click commands with --help and actionable error messages
 - [ ] **Phase 7: GitHub Action + README** - workflow YAML, cost guard, state persistence, and README
 
@@ -106,7 +106,7 @@ Plans:
 
 Plans:
 - [x] 05-01-PLAN.md — KBGenerator core: slugify, article generation with frontmatter, manifest-based incremental dedup
-- [ ] 05-02-PLAN.md — Index generation: kb/INDEX.md with category groupings, counts, summaries, and review markers
+- [x] 05-02-PLAN.md — Index generation: kb/INDEX.md with category groupings, counts, summaries, and review markers
 
 ### Phase 6: CLI Integration
 **Goal**: A user can drive the full extract → classify → generate pipeline through named CLI commands with clear help text and actionable error messages.
@@ -144,6 +144,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 2. GitHub Extraction Core | 2/2 | Complete | 2026-04-03 |
 | 3. Extraction Resilience & Cache | 1/1 | Complete | 2026-04-04 |
 | 4. Claude Classifier | 2/2 | Complete   | 2026-04-05 |
-| 5. KB Generator | 1/2 | In Progress|  |
+| 5. KB Generator | 2/2 | Complete   | 2026-04-06 |
 | 6. CLI Integration | 0/TBD | Not started | - |
 | 7. GitHub Action + README | 0/TBD | Not started | - |
