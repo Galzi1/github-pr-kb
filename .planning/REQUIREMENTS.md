@@ -22,10 +22,10 @@
 
 ### Knowledge Base
 
-- [ ] **KB-01**: User can generate a markdown knowledge base organized into per-category subdirectories
-- [ ] **KB-02**: Each KB article includes YAML frontmatter: PR link, author, date, category, confidence score
-- [ ] **KB-03**: Generator produces an index file listing all topics with article counts and summaries
-- [ ] **KB-04**: Incremental KB generation merges new content without duplicating existing entries (PR+comment ID dedup)
+- [x] **KB-01**: User can generate a markdown knowledge base organized into per-category subdirectories
+- [x] **KB-02**: Each KB article includes YAML frontmatter: PR link, author, date, category, confidence score
+- [x] **KB-03**: Generator produces an index file listing all topics with article counts and summaries
+- [x] **KB-04**: Incremental KB generation merges new content without duplicating existing entries (PR+comment ID dedup)
 
 ### CLI
 
@@ -86,10 +86,10 @@
 | CLASS-02 | Phase 4 | Complete |
 | CLASS-03 | Phase 4 | Complete |
 | CLASS-04 | Phase 4 | Complete |
-| KB-01 | Phase 5 | Pending |
-| KB-02 | Phase 5 | Pending |
-| KB-03 | Phase 5 | Pending |
-| KB-04 | Phase 5 | Pending |
+| KB-01 | Phase 5 | Complete |
+| KB-02 | Phase 5 | Complete |
+| KB-03 | Phase 5 | Complete |
+| KB-04 | Phase 5 | Complete |
 | CLI-01 | Phase 6 | Pending |
 | CLI-02 | Phase 6 | Pending |
 | CLI-03 | Phase 6 | Pending |
