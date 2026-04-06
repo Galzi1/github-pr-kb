@@ -3,8 +3,6 @@
 Reads classified-pr-N.json files from the cache directory (written by PRClassifier),
 assembles one markdown article per classified comment organized into per-category
 subdirectories, and maintains a manifest for incremental dedup.
-
-Requirements: KB-01 (per-category dirs), KB-02 (frontmatter), KB-04 (manifest dedup).
 """
 import contextlib
 import json
@@ -14,6 +12,7 @@ import re
 import tempfile
 import unicodedata
 from pathlib import Path
+from typing import NamedTuple
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -28,6 +27,14 @@ from github_pr_kb.models import (
 logger = logging.getLogger(__name__)
 
 DEFAULT_CACHE_DIR = Path(".github-pr-kb/cache")
+_FRONTMATTER_DELIMITER = "---"
+
+
+class IndexEntry(NamedTuple):
+    stem: str
+    rel_path: str
+    summary: str
+    needs_review: bool
 
 
 # ---------------------------------------------------------------------------
@@ -36,26 +43,21 @@ DEFAULT_CACHE_DIR = Path(".github-pr-kb/cache")
 
 
 def slugify(text: str, max_len: int = 60) -> str:
-    """Convert AI summary text to a URL-safe, filesystem-safe slug (D-08).
+    """Convert AI summary text to a URL-safe, filesystem-safe slug.
 
-    Rules: lowercase, ASCII-only (NFKD transliteration), hyphens for non-alphanumeric,
-    max max_len characters truncated at word boundary, fallback 'untitled'.
+    Applies NFKD unicode normalization, lowercases, replaces non-alphanumeric
+    runs with hyphens, and truncates at the last word boundary within max_len.
     """
     if not text:
         return "untitled"
 
-    # Normalize unicode to ASCII
     normalized = unicodedata.normalize("NFKD", text)
     ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
-
-    # Lowercase and replace non-alphanumeric runs with hyphens
-    lowered = ascii_text.lower()
-    slugged = re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
+    slugged = re.sub(r"[^a-z0-9]+", "-", ascii_text.lower()).strip("-")
 
     if not slugged:
         return "untitled"
 
-    # Truncate at word boundary to stay within max_len
     if len(slugged) > max_len:
         truncated = slugged[:max_len]
         last_hyphen = truncated.rfind("-")
@@ -67,8 +69,8 @@ def slugify(text: str, max_len: int = 60) -> str:
 def _yaml_str(value: str) -> str:
     """Wrap value in double quotes for safe YAML frontmatter output.
 
-    Escapes backslashes, double quotes, and replaces newlines/carriage returns
-    with a space so PR titles with embedded newlines produce valid single-line YAML.
+    Escapes backslashes and double quotes, and collapses embedded newlines to
+    spaces so PR titles with line breaks produce valid single-line YAML values.
     """
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
     escaped = escaped.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
@@ -81,7 +83,7 @@ def _yaml_str(value: str) -> str:
 
 
 class GenerateResult(BaseModel):
-    """Summary of a generate_all() run (D-19)."""
+    """Summary of a generate_all() run."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -130,11 +132,14 @@ class KBGenerator:
         if kb_dir is not None:
             self._kb_dir = kb_dir
         else:
-            # Import inside __init__ to avoid import-time errors in tests
+            # Lazy import to avoid import-time errors in tests
             from github_pr_kb.config import settings
             self._kb_dir = Path(settings.kb_output_dir)
 
         self._manifest: dict[str, str] = self._load_manifest()
+        # Lazily populated per-category slug cache to avoid repeated manifest scans
+        # and filesystem globs in _resolve_slug during batch article generation.
+        self._category_slugs: dict[str, set[str]] = {}
         self._written = 0
         self._skipped = 0
         self._failed: list[dict[str, str]] = []
@@ -155,39 +160,24 @@ class KBGenerator:
             return {}
 
     def _save_manifest(self) -> None:
-        """Write self._manifest to kb_dir/.manifest.json atomically."""
         self._kb_dir.mkdir(parents=True, exist_ok=True)
-        manifest_path = self._kb_dir / ".manifest.json"
-        _write_atomic(manifest_path, json.dumps(self._manifest, indent=2))
+        _write_atomic(self._kb_dir / ".manifest.json", json.dumps(self._manifest, indent=2))
 
     # ------------------------------------------------------------------
     # File discovery
     # ------------------------------------------------------------------
 
     def _find_classified_files(self) -> list[Path]:
-        """Return all classified-pr-*.json paths in the cache directory."""
         return list(self._cache_dir.glob("classified-pr-*.json"))
 
     # ------------------------------------------------------------------
-    # Slug resolution with collision handling (D-09)
+    # Slug resolution with collision handling
     # ------------------------------------------------------------------
 
     def _resolve_slug(self, summary: str, category: str) -> str:
         """Compute a unique slug for summary within category, appending -N on collision."""
         base_slug = slugify(summary)
-
-        # Collect existing slugs for this category from manifest values
-        existing_slugs: set[str] = set()
-        for rel_path in self._manifest.values():
-            parts = rel_path.split("/")
-            if len(parts) == 2 and parts[0] == category:
-                existing_slugs.add(parts[1].removesuffix(".md"))
-
-        # Also check filesystem for files not yet in manifest
-        category_dir = self._kb_dir / category
-        if category_dir.exists():
-            for md_file in category_dir.glob("*.md"):
-                existing_slugs.add(md_file.stem)
+        existing_slugs = self._slugs_for_category(category)
 
         slug = base_slug
         counter = 2
@@ -196,6 +186,26 @@ class KBGenerator:
             counter += 1
 
         return slug
+
+    def _slugs_for_category(self, category: str) -> set[str]:
+        """Return (and cache) the set of existing slugs for a category.
+
+        Built once per category from both the manifest and the filesystem so that
+        files written outside this tool are also considered for collision avoidance.
+        Updated in-place after each successful write to avoid re-scanning.
+        """
+        if category not in self._category_slugs:
+            slugs: set[str] = set()
+            for rel_path in self._manifest.values():
+                parts = rel_path.split("/")
+                if len(parts) == 2 and parts[0] == category:
+                    slugs.add(parts[1].removesuffix(".md"))
+            category_dir = self._kb_dir / category
+            if category_dir.exists():
+                for md_file in category_dir.glob("*.md"):
+                    slugs.add(md_file.stem)
+            self._category_slugs[category] = slugs
+        return self._category_slugs[category]
 
     # ------------------------------------------------------------------
     # Article construction
@@ -207,9 +217,8 @@ class KBGenerator:
         comment: CommentRecord,
         classified: ClassifiedComment,
     ) -> str:
-        """Build the full markdown article string for a classified comment."""
         frontmatter_lines = [
-            "---",
+            _FRONTMATTER_DELIMITER,
             f"pr_url: {pr.url}",
             f"pr_title: {_yaml_str(pr.title)}",
             f"comment_url: {comment.url}",
@@ -219,66 +228,57 @@ class KBGenerator:
             f"confidence: {classified.confidence}",
             f"needs_review: {str(classified.needs_review).lower()}",
             f"comment_id: {comment.comment_id}",
-            "---",
+            _FRONTMATTER_DELIMITER,
         ]
-        frontmatter = "\n".join(frontmatter_lines)
 
-        # Article body: heading (D-01) + original comment body (D-01)
         body_parts = [
-            frontmatter,
+            "\n".join(frontmatter_lines),
             "",
             f"# {classified.summary}",
             "",
             comment.body,
         ]
 
-        # Append diff_hunk only for review comments that have one (D-03)
         if comment.diff_hunk:
-            body_parts.extend([
-                "",
-                "```",
-                comment.diff_hunk,
-                "```",
-            ])
+            body_parts.extend(["", "```", comment.diff_hunk, "```"])
 
         return "\n".join(body_parts) + "\n"
 
     # ------------------------------------------------------------------
-    # Index generation (D-11 through D-14)
+    # Index generation
     # ------------------------------------------------------------------
 
     def _generate_index(self) -> None:
-        """Regenerate kb/INDEX.md from all existing .md files on disk (D-14).
+        """Regenerate kb/INDEX.md from all existing .md files on disk.
 
-        Scans all .md files in per-category subdirectories (excluding INDEX.md itself),
-        parses each file's YAML frontmatter to extract category, needs_review, and the
-        first # heading as the summary text.  Groups entries by category (sorted
-        alphabetically), builds INDEX.md content, and writes it atomically.
-
-        Files with unparseable frontmatter are skipped with a warning (Pitfall 5).
-        When the KB is empty the index is still written with just the title (R3 mitigation).
+        Scans all per-category .md files, parses each file's YAML frontmatter,
+        groups entries by category (sorted alphabetically), and writes INDEX.md.
+        Files with unparseable frontmatter are skipped with a warning.
+        An empty KB still produces a valid index with just the title.
         """
-        # category -> list of (filename_stem, relative_path_str, summary, needs_review)
-        entries: dict[str, list[tuple[str, str, str, bool]]] = {}
+        entries = self._collect_index_entries()
+        index_content = self._build_index_content(entries)
+        self._kb_dir.mkdir(parents=True, exist_ok=True)
+        _write_atomic(self._kb_dir / "INDEX.md", index_content)
+
+    def _collect_index_entries(self) -> dict[str, list[IndexEntry]]:
+        """Scan kb_dir for category/*.md files and extract their index metadata."""
+        entries: dict[str, list[IndexEntry]] = {}
 
         for md_file in sorted(self._kb_dir.rglob("*.md")):
-            # Skip INDEX.md itself — it lives at the top level
             if md_file.name == "INDEX.md":
                 continue
 
-            # Determine the relative path from kb_dir (e.g. "gotcha/avoid-circular.md")
             try:
                 rel_path = md_file.relative_to(self._kb_dir)
             except ValueError:
                 continue
 
-            # Only include files one level deep (category/slug.md), not nested deeper
             if len(rel_path.parts) != 2:
                 continue
 
             category_slug = rel_path.parts[0]
 
-            # Parse YAML frontmatter between first and second --- delimiters
             try:
                 text = md_file.read_text(encoding="utf-8")
             except OSError as exc:
@@ -287,75 +287,74 @@ class KBGenerator:
 
             frontmatter_fields, summary = self._parse_article_metadata(text)
             if frontmatter_fields is None:
-                logger.warning(
-                    "Could not parse frontmatter in %s — skipping from index", md_file.name
-                )
+                logger.warning("Could not parse frontmatter in %s — skipping from index", md_file.name)
                 continue
 
-            # R3 mitigation: needs_review is stored as YAML string "true"/"false"
-            raw_needs_review = frontmatter_fields.get("needs_review", "false")
-            needs_review = raw_needs_review.strip().lower() == "true"
+            # needs_review is stored in frontmatter as the string "true" or "false"
+            needs_review = frontmatter_fields.get("needs_review", "false").strip().lower() == "true"
 
             entries.setdefault(category_slug, []).append(
-                (md_file.stem, str(rel_path).replace("\\", "/"), summary, needs_review)
+                IndexEntry(
+                    stem=md_file.stem,
+                    rel_path=str(rel_path).replace("\\", "/"),
+                    summary=summary,
+                    needs_review=needs_review,
+                )
             )
 
-        # Build INDEX.md content
+        return entries
+
+    def _build_index_content(self, entries: dict[str, list[IndexEntry]]) -> str:
+        """Render INDEX.md markdown content from collected category entries."""
         lines: list[str] = ["# Knowledge Base Index", ""]
 
         for category_slug in sorted(entries.keys()):
             display_name = category_slug.replace("_", " ").title()
-            category_entries = sorted(entries[category_slug], key=lambda e: e[0])
-            count = len(category_entries)
+            category_entries = sorted(entries[category_slug], key=lambda e: e.stem)
 
-            lines.append(f"## {display_name} ({count})")
+            lines.append(f"## {display_name} ({len(category_entries)})")
             lines.append("")
 
-            for _stem, rel_path_str, summary, needs_review in category_entries:
-                entry_line = f"- [{summary}]({rel_path_str})"
-                if needs_review:
+            for entry in category_entries:
+                entry_line = f"- [{entry.summary}]({entry.rel_path})"
+                if entry.needs_review:
                     entry_line += " [review]"
                 lines.append(entry_line)
 
             lines.append("")
 
-        index_content = "\n".join(lines)
-
-        self._kb_dir.mkdir(parents=True, exist_ok=True)
-        _write_atomic(self._kb_dir / "INDEX.md", index_content)
+        return "\n".join(lines)
 
     def _parse_article_metadata(
         self, text: str
     ) -> tuple[dict[str, str] | None, str]:
         """Parse YAML frontmatter and first # heading from article text.
 
-        Returns (frontmatter_dict, summary_text).  frontmatter_dict is None if
-        the frontmatter delimiters are not found or malformed.  summary_text is
+        Returns (frontmatter_dict, summary_text). frontmatter_dict is None if
+        the frontmatter delimiters are not found or malformed. summary_text is
         the first # heading found after the frontmatter, or empty string if absent.
         """
         lines = text.splitlines()
-        if not lines or lines[0].strip() != "---":
+        if not lines or lines[0].strip() != _FRONTMATTER_DELIMITER:
             return None, ""
 
         closing_idx: int | None = None
         for i, line in enumerate(lines[1:], start=1):
-            if line.strip() == "---":
+            if line.strip() == _FRONTMATTER_DELIMITER:
                 closing_idx = i
                 break
 
         if closing_idx is None:
             return None, ""
 
-        frontmatter_lines = lines[1:closing_idx]
         fields: dict[str, str] = {}
-        for fm_line in frontmatter_lines:
+        for fm_line in lines[1:closing_idx]:
             if ":" in fm_line:
                 key, _, value = fm_line.partition(":")
                 fields[key.strip()] = value.strip()
 
-        # Find first # heading after frontmatter
         summary = ""
-        for line in lines[closing_idx + 1 :]:
+        for line in lines[closing_idx + 1:]:
             if line.startswith("# "):
                 summary = line[2:].strip()
                 break
@@ -363,100 +362,118 @@ class KBGenerator:
         return fields, summary
 
     # ------------------------------------------------------------------
+    # Processing pipeline
+    # ------------------------------------------------------------------
+
+    def _write_article(
+        self,
+        pr: PRRecord,
+        comment: CommentRecord,
+        classification: ClassifiedComment,
+    ) -> str | None:
+        """Write a KB article for one classification; return rel_path or None on failure."""
+        article = self._build_article(pr, comment, classification)
+        slug = self._resolve_slug(classification.summary, classification.category)
+
+        category_dir = self._kb_dir / classification.category
+        category_dir.mkdir(parents=True, exist_ok=True)
+
+        rel_path = f"{classification.category}/{slug}.md"
+        try:
+            _write_atomic(self._kb_dir / rel_path, article)
+        except OSError as exc:
+            logger.warning("Could not write article %s: %s", rel_path, exc)
+            self._failed.append({
+                "file": rel_path,
+                "reason": type(exc).__name__,
+                "detail": str(exc),
+            })
+            return None
+
+        self._slugs_for_category(classification.category).add(slug)
+        return rel_path
+
+    def _process_classified_file(self, classified_path: Path) -> None:
+        """Process one classified-pr-N.json file, writing articles for new comments."""
+        try:
+            classified_file = ClassifiedFile.model_validate_json(
+                classified_path.read_text(encoding="utf-8")
+            )
+        except (OSError, ValidationError, json.JSONDecodeError) as exc:
+            logger.warning(
+                "Could not parse classified file %s: %s — skipping",
+                classified_path.name,
+                exc,
+            )
+            self._failed.append({
+                "file": classified_path.name,
+                "reason": type(exc).__name__,
+                "detail": str(exc),
+            })
+            return
+
+        pr_number = classified_file.pr.number
+        pr_path = self._cache_dir / f"pr-{pr_number}.json"
+        try:
+            pr_file = PRFile.model_validate_json(pr_path.read_text(encoding="utf-8"))
+        except (OSError, ValidationError, json.JSONDecodeError) as exc:
+            logger.warning(
+                "Could not load PR file pr-%d.json: %s — skipping classified file %s",
+                pr_number,
+                exc,
+                classified_path.name,
+            )
+            self._failed.append({
+                "file": f"pr-{pr_number}.json",
+                "reason": type(exc).__name__,
+                "detail": str(exc),
+            })
+            return
+
+        comments_by_id: dict[int, CommentRecord] = {
+            c.comment_id: c for c in pr_file.comments
+        }
+
+        for classification in classified_file.classifications:
+            # Manifest keys are strings to match JSON serialization
+            key = str(classification.comment_id)
+
+            if key in self._manifest:
+                self._skipped += 1
+                continue
+
+            comment = comments_by_id.get(classification.comment_id)
+            if comment is None:
+                logger.warning(
+                    "Comment %d not found in pr-%d.json — skipping",
+                    classification.comment_id,
+                    pr_number,
+                )
+                self._failed.append({
+                    "file": classified_path.name,
+                    "reason": "CommentNotFound",
+                    "detail": f"comment_id={classification.comment_id} missing from pr-{pr_number}.json",
+                })
+                continue
+
+            rel_path = self._write_article(classified_file.pr, comment, classification)
+            if rel_path is not None:
+                self._manifest[key] = rel_path
+                self._written += 1
+
+    # ------------------------------------------------------------------
     # Main generation entry point
     # ------------------------------------------------------------------
 
     def generate_all(self) -> GenerateResult:
         """Read all classified-pr-N.json files, write new articles, update manifest."""
+        self._written = 0
+        self._skipped = 0
+        self._failed = []
+        self._category_slugs = {}
+
         for classified_path in self._find_classified_files():
-            # Parse the classified file (D-18: log warning on error, continue)
-            try:
-                content = classified_path.read_text(encoding="utf-8")
-                classified_file = ClassifiedFile.model_validate_json(content)
-            except (OSError, ValidationError, json.JSONDecodeError) as exc:
-                logger.warning(
-                    "Could not parse classified file %s: %s — skipping",
-                    classified_path.name,
-                    exc,
-                )
-                self._failed.append({
-                    "file": classified_path.name,
-                    "reason": type(exc).__name__,
-                    "detail": str(exc),
-                })
-                continue
-
-            # Load the corresponding pr-N.json for CommentRecord data
-            pr_number = classified_file.pr.number
-            pr_path = self._cache_dir / f"pr-{pr_number}.json"
-            try:
-                pr_content = pr_path.read_text(encoding="utf-8")
-                pr_file = PRFile.model_validate_json(pr_content)
-            except (OSError, ValidationError, json.JSONDecodeError) as exc:
-                logger.warning(
-                    "Could not load PR file pr-%d.json: %s — skipping classified file %s",
-                    pr_number,
-                    exc,
-                    classified_path.name,
-                )
-                self._failed.append({
-                    "file": f"pr-{pr_number}.json",
-                    "reason": type(exc).__name__,
-                    "detail": str(exc),
-                })
-                continue
-
-            # Build a lookup map from comment_id to CommentRecord
-            comments_by_id: dict[int, CommentRecord] = {
-                c.comment_id: c for c in pr_file.comments
-            }
-
-            for classification in classified_file.classifications:
-                key = str(classification.comment_id)  # str for JSON key consistency (Pitfall 1)
-
-                # Skip already-generated articles (KB-04 dedup)
-                if key in self._manifest:
-                    self._skipped += 1
-                    continue
-
-                comment = comments_by_id.get(classification.comment_id)
-                if comment is None:
-                    logger.warning(
-                        "Comment %d not found in pr-%d.json — skipping",
-                        classification.comment_id,
-                        pr_number,
-                    )
-                    self._failed.append({
-                        "file": classified_path.name,
-                        "reason": "CommentNotFound",
-                        "detail": f"comment_id={classification.comment_id} missing from pr-{pr_number}.json",
-                    })
-                    continue
-
-                article = self._build_article(classified_file.pr, comment, classification)
-                slug = self._resolve_slug(classification.summary, classification.category)
-
-                category_dir = self._kb_dir / classification.category
-                category_dir.mkdir(parents=True, exist_ok=True)  # D-10
-
-                rel_path = f"{classification.category}/{slug}.md"
-                try:
-                    _write_atomic(self._kb_dir / rel_path, article)
-                except OSError as exc:
-                    logger.warning(
-                        "Could not write article %s: %s",
-                        rel_path,
-                        exc,
-                    )
-                    self._failed.append({
-                        "file": rel_path,
-                        "reason": type(exc).__name__,
-                        "detail": str(exc),
-                    })
-                    continue
-
-                self._manifest[key] = rel_path
-                self._written += 1
+            self._process_classified_file(classified_path)
 
         self._save_manifest()
         self._generate_index()
