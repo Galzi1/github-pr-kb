@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CACHE_DIR = Path(".github-pr-kb/cache")
 _FRONTMATTER_DELIMITER = "---"
+_UNTITLED_SLUG = "untitled"
 
 
 class IndexEntry(NamedTuple):
@@ -49,19 +50,20 @@ def slugify(text: str, max_len: int = 60) -> str:
     runs with hyphens, and truncates at the last word boundary within max_len.
     """
     if not text:
-        return "untitled"
+        return _UNTITLED_SLUG
 
     normalized = unicodedata.normalize("NFKD", text)
     ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
     slugged = re.sub(r"[^a-z0-9]+", "-", ascii_text.lower()).strip("-")
 
     if not slugged:
-        return "untitled"
+        return _UNTITLED_SLUG
 
     if len(slugged) > max_len:
         truncated = slugged[:max_len]
         last_hyphen = truncated.rfind("-")
         slugged = truncated[:last_hyphen] if last_hyphen > 0 else truncated
+        logger.debug("Slug truncated from %d to %d chars: %r", len(text), len(slugged), slugged)
 
     return slugged or "untitled"
 
@@ -106,6 +108,7 @@ def _write_atomic(path: Path, data: str) -> None:
             f.write(data)
         os.replace(tmp_name, str(path))
     except Exception:
+        logger.debug("Atomic write failed for %s; cleaning up temp file", path)
         if tmp_name is not None:
             with contextlib.suppress(OSError):
                 os.unlink(tmp_name)
@@ -154,6 +157,7 @@ class KBGenerator:
         try:
             return json.loads(path.read_text(encoding="utf-8"))
         except FileNotFoundError:
+            logger.warning("No manifest found at %s — starting fresh", path)
             return {}
         except json.JSONDecodeError:
             logger.warning("kb/.manifest.json is corrupt — rebuilding from scratch")
@@ -180,6 +184,8 @@ class KBGenerator:
         existing_slugs = self._slugs_for_category(category)
 
         slug = base_slug
+        # Start at 2 because the unsuffixed slug is implicitly the first;
+        # collisions produce slug-2, slug-3, etc.
         counter = 2
         while slug in existing_slugs:
             slug = f"{base_slug}-{counter}"
@@ -195,17 +201,25 @@ class KBGenerator:
         Updated in-place after each successful write to avoid re-scanning.
         """
         if category not in self._category_slugs:
-            slugs: set[str] = set()
-            for rel_path in self._manifest.values():
-                parts = rel_path.split("/")
-                if len(parts) == 2 and parts[0] == category:
-                    slugs.add(parts[1].removesuffix(".md"))
-            category_dir = self._kb_dir / category
-            if category_dir.exists():
-                for md_file in category_dir.glob("*.md"):
-                    slugs.add(md_file.stem)
-            self._category_slugs[category] = slugs
+            self._category_slugs[category] = (
+                self._slugs_from_manifest(category) | self._slugs_from_disk(category)
+            )
         return self._category_slugs[category]
+
+    def _slugs_from_manifest(self, category: str) -> set[str]:
+        """Extract slugs for *category* from the in-memory manifest."""
+        return {
+            rel.split("/")[1].removesuffix(".md")
+            for rel in self._manifest.values()
+            if rel.startswith(f"{category}/") and rel.count("/") == 1
+        }
+
+    def _slugs_from_disk(self, category: str) -> set[str]:
+        """Collect slugs from existing .md files in the category directory."""
+        category_dir = self._kb_dir / category
+        if not category_dir.exists():
+            return set()
+        return {md_file.stem for md_file in category_dir.glob("*.md")}
 
     # ------------------------------------------------------------------
     # Article construction
@@ -272,9 +286,12 @@ class KBGenerator:
             try:
                 rel_path = md_file.relative_to(self._kb_dir)
             except ValueError:
+                logger.warning("Article %s is outside kb_dir %s — skipping", md_file, self._kb_dir)
                 continue
 
+            # Only index files at exactly category/article.md depth
             if len(rel_path.parts) != 2:
+                logger.debug("Skipping %s — not at expected category/article.md depth", rel_path)
                 continue
 
             category_slug = rel_path.parts[0]
