@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import anthropic
 import pytest
 
+from github_pr_kb.classifier import DEFAULT_MODEL
 from github_pr_kb.models import (
     ClassifiedFile,
     CommentRecord,
@@ -24,7 +25,7 @@ def make_mock_message(json_text: str) -> anthropic.types.Message:
     return anthropic.types.Message(
         id="msg_test",
         content=[anthropic.types.TextBlock(text=json_text, type="text")],
-        model="claude-haiku-4-5-20251001",
+        model=DEFAULT_MODEL,
         role="assistant",
         stop_reason="end_turn",
         type="message",
