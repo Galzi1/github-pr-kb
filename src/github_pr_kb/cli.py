@@ -25,10 +25,10 @@ def _parse_iso_date(value: str | None, flag_name: str) -> datetime | None:
         return None
     try:
         return datetime.fromisoformat(value)
-    except ValueError:
+    except ValueError as exc:
         raise click.UsageError(
             f"--{flag_name} must be an ISO date (e.g. 2024-01-01). Got: {value!r}"
-        )
+        ) from exc
 
 
 def _configure_logging(verbose: bool) -> None:
@@ -37,17 +37,17 @@ def _configure_logging(verbose: bool) -> None:
         logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(message)s")
 
 
-def _handle_config_error(exc: Exception) -> None:
-    """Convert pydantic ValidationError into a user-friendly ClickException."""
-    from pydantic import ValidationError
+class ConfigurationError(click.ClickException):
+    """Raised when a required environment variable or config value is missing."""
 
-    if isinstance(exc, ValidationError):
-        raise click.ClickException(
+    def __init__(self, detail: str = "") -> None:
+        hint = (
             "Configuration error -- missing required environment variable.\n"
             "Hint: copy .env.example to .env and fill in GITHUB_TOKEN"
             " (and ANTHROPIC_API_KEY for classify)."
         )
-    raise click.ClickException(f"Startup error: {exc}")
+        message = f"{hint}\nDetail: {detail}" if detail else hint
+        super().__init__(message)
 
 
 # ---------------------------------------------------------------------------
@@ -67,21 +67,18 @@ def _run_extract(
 
         extractor = GitHubExtractor(repo_name=repo)
     except Exception as exc:
-        _handle_config_error(exc)
-        # _handle_config_error always raises — this line is unreachable but
-        # satisfies the type checker that extractor is always bound below.
-        raise  # pragma: no cover
+        raise ConfigurationError(str(exc)) from exc
 
     try:
         paths: list[Path] = extractor.extract(state=state, since=since_dt, until=until_dt)
     except RateLimitExhaustedError as exc:
-        raise click.ClickException(str(exc))
+        raise click.ClickException(str(exc)) from exc
     except Exception as exc:
         raise click.ClickException(
             f"Extraction failed: {exc}\n"
             "Hint: verify --repo is in owner/name format and your token has"
             " repo read access."
-        )
+        ) from exc
 
     total_comments = 0
     for p in paths:
@@ -89,7 +86,7 @@ def _run_extract(
             data = json.loads(p.read_text(encoding="utf-8"))
             total_comments += len(data.get("comments", []))
         except Exception:
-            pass  # Skip unreadable files — count stays conservative
+            logging.debug("Skipping unreadable cache file: %s", p)
 
     return f"Extracted {len(paths)} PRs, {total_comments} comments cached."
 
@@ -100,15 +97,13 @@ def _run_classify() -> str:
         from github_pr_kb.classifier import PRClassifier
 
         classifier = PRClassifier()
-    except ValueError:
-        # Missing ANTHROPIC_API_KEY — classifier.__init__ raises ValueError
+    except ValueError as exc:
         raise click.ClickException(
             "Configuration error -- missing required environment variable.\n"
             "Hint: copy .env.example to .env and fill in ANTHROPIC_API_KEY."
-        )
+        ) from exc
     except Exception as exc:
-        _handle_config_error(exc)
-        raise  # pragma: no cover
+        raise ConfigurationError(str(exc)) from exc
 
     # Suppress classifier's built-in print_summary() — it uses bare print()
     # and would duplicate/pollute the CLI's own green summary line.
@@ -129,8 +124,7 @@ def _run_generate() -> str:
 
         generator = KBGenerator()
     except Exception as exc:
-        _handle_config_error(exc)
-        raise  # pragma: no cover
+        raise ConfigurationError(str(exc)) from exc
 
     result = generator.generate_all()
     total = result.written + result.skipped
