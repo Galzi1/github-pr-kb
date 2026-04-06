@@ -17,7 +17,6 @@ from github_pr_kb.models import (
     PRRecord,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -647,6 +646,7 @@ def test_index_multiple_categories(make_two_classified_files: Path, tmp_path: Pa
 def test_index_entry_has_summary_and_link(make_classified_file: Path, tmp_path: Path) -> None:
     """Each index entry is a markdown link of the form '- [summary](category/slug.md)'."""
     import re as _re
+
     from github_pr_kb.generator import KBGenerator
 
     kb_dir = tmp_path / "kb"
