@@ -2,7 +2,7 @@
 
 ## Overview
 
-Seven phases build the tool from scratch: a Python project foundation using uv, then a GitHub extractor delivering basic auth and filtered fetching, then extraction resilience with rate-limit backoff and idempotent caching, then a Claude-powered classifier with cost controls, then a markdown KB generator with idempotent merging, then the CLI surface that ties all three together, and finally a GitHub Action with README for automation and hand-off.
+Eight phases build the tool from scratch: a Python project foundation using uv, then a GitHub extractor delivering basic auth and filtered fetching, then extraction resilience with rate-limit backoff and idempotent caching, then a Claude-powered classifier with cost controls, then a markdown KB generator with idempotent merging, then the CLI surface that ties all three together, and finally a GitHub Action with README for automation and hand-off.
 
 Storage format decisions (DB type, schema, cache mechanism) for Phases 2, 3, and 4 are deferred to the `/gsd:discuss-phase` session for each phase, before any implementation begins.
 
@@ -20,7 +20,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Claude Classifier** - classification, confidence scoring, and cost caching (completed 2026-04-05)
 - [x] **Phase 5: KB Generator** - markdown files with frontmatter, index file, and incremental merge (completed 2026-04-06)
 - [x] **Phase 6: CLI Integration** - Click commands with --help and actionable error messages (completed 2026-04-06)
-- [ ] **Phase 7: GitHub Action + README** - workflow YAML, cost guard, state persistence, and README
+- [ ] **Phase 7: Fix Article Generation Quality** - fix misleading output, useless articles, and meaningless classification-failed files
+- [ ] **Phase 8: GitHub Action + README** - workflow YAML, cost guard, state persistence, and README
 
 ## Phase Details
 
@@ -124,9 +125,25 @@ Plans:
 Plans:
 - [x] 06-01-PLAN.md — Click CLI: extract, classify, generate, run commands with lazy imports, colored output, CliRunner tests
 
-### Phase 7: GitHub Action + README
-**Goal**: A repository maintainer can add a provided workflow file and have PR comments automatically extracted and the KB updated on a schedule, with no wasted API calls when nothing is new, and a new user can get from zero to a generated KB by following the README alone.
+### Phase 7: Fix Article Generation Quality
+**Goal**: Fix misleading output, useless articles (copied comments without processing), and meaningless classification-failed files so the generated KB contains genuinely useful, well-synthesized knowledge articles.
 **Depends on**: Phase 6
+**Requirements**: Q-01, Q-02, Q-03, Q-04
+**Success Criteria** (what must be TRUE):
+  1. CLI output accurately reflects what happened (no misleading messages)
+  2. Generated articles synthesize and add value beyond the raw comment text
+  3. Classification failures are handled gracefully (no meaningless `classification-failed-*.md` files)
+  4. Tests covering this phase's components pass
+**Plans**: 3 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — Fix classifier failure handling, extend config with new settings, extend GenerateResult model
+- [ ] 07-02-PLAN.md — Replace raw-comment-copy generator with Claude-powered synthesis, add confidence filtering and regeneration
+- [ ] 07-03-PLAN.md — Fix CLI output accuracy, add --regenerate flag, API key validation for generate
+
+### Phase 8: GitHub Action + README
+**Goal**: A repository maintainer can add a provided workflow file and have PR comments automatically extracted and the KB updated on a schedule, with no wasted API calls when nothing is new, and a new user can get from zero to a generated KB by following the README alone.
+**Depends on**: Phase 7
 **Requirements**: ACTION-01, ACTION-02, ACTION-03, INFRA-03
 **Success Criteria** (what must be TRUE):
   1. A ready-to-use GitHub Actions workflow YAML file is included in the repo and can be copied into any target repository
@@ -136,10 +153,13 @@ Plans:
   5. Tests covering this phase's components pass (mocked external APIs where applicable)
 **Plans**: TBD
 
+Plans:
+- [ ] TBD (run /gsd:plan-phase 8 to break down)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -149,4 +169,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 4. Claude Classifier | 2/2 | Complete   | 2026-04-05 |
 | 5. KB Generator | 2/2 | Complete   | 2026-04-06 |
 | 6. CLI Integration | 1/1 | Complete   | 2026-04-06 |
-| 7. GitHub Action + README | 0/TBD | Not started | - |
+| 7. Fix Article Generation Quality | 0/3 | Not started | - |
+| 8. GitHub Action + README | 0/TBD | Not started | - |
