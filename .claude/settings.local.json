@@ -24,7 +24,8 @@
       "Bash(echo \"EXIT: $?\")",
       "Bash(rtk ls:*)",
       "Bash(gh --version)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "mcp__plugin_context7_context7__query-docs"
     ]
   },
   "enabledPlugins": {
