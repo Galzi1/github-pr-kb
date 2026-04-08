@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import anthropic
 import pytest
 
-from github_pr_kb.classifier import DEFAULT_MODEL
+from github_pr_kb.classifier import DEFAULT_COMMENT_CHUNK_SIZE, DEFAULT_MODEL
 from github_pr_kb.models import (
     ClassifiedFile,
     CommentRecord,
@@ -251,6 +251,55 @@ def test_load_index_filters_failed(tmp_path):
 
     assert "hash1" in classifier._index
     assert "hash2" not in classifier._index
+
+
+def test_long_comment_body_is_sent_in_full(tmp_path):
+    from github_pr_kb.classifier import PRClassifier
+
+    tail_marker = "TAIL-MARKER"
+    long_body = "START-" + ("a" * DEFAULT_COMMENT_CHUNK_SIZE) + tail_marker
+    pr_file = PRFile(
+        pr=PRRecord(
+            number=1,
+            title="Test PR",
+            state="open",
+            url="https://github.com/test/repo/pull/1",
+        ),
+        comments=[
+            CommentRecord(
+                comment_id=101,
+                comment_type="review",
+                author="testuser",
+                body=long_body,
+                created_at=datetime(2026, 1, 15, tzinfo=timezone.utc),
+                url="https://github.com/test/repo/pull/1#comment-101",
+            ),
+        ],
+        extracted_at=datetime(2026, 1, 15, tzinfo=timezone.utc),
+    )
+    (tmp_path / "pr-1.json").write_text(
+        json.dumps(pr_file.model_dump(mode="json"), indent=2),
+        encoding="utf-8",
+    )
+
+    response_json = json.dumps({
+        "category": "code_pattern",
+        "confidence": 0.9,
+        "summary": "Use the complete comment body.",
+    })
+    mock_message = make_mock_message(response_json)
+
+    with patch("github_pr_kb.classifier.Anthropic") as MockAnthropic:
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_message
+        MockAnthropic.return_value = mock_client
+
+        classifier = PRClassifier(cache_dir=tmp_path, api_key="sk-ant-fake")
+        classifier.classify_pr(1)
+
+    api_body = mock_client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert tail_marker in api_body
+    assert api_body.count("<comment_chunk") == 2
 
 
 def test_load_index_keeps_valid(tmp_path):
