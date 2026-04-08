@@ -136,19 +136,36 @@ class KBGenerator:
         api_key: str | None = None,
         model: str | None = None,
         anthropic_client: Anthropic | None = None,
+        min_confidence: float | None = None,
     ) -> None:
-        from github_pr_kb.config import settings
-
         self._cache_dir = cache_dir
+
+        needs_settings = (
+            kb_dir is None
+            or (api_key is None and anthropic_client is None)
+            or model is None
+            or min_confidence is None
+        )
+        if needs_settings:
+            from github_pr_kb.config import settings
+        else:
+            settings = None  # type: ignore[assignment]
+
         self._kb_dir = kb_dir if kb_dir is not None else Path(settings.kb_output_dir)
 
-        resolved_api_key = api_key if api_key is not None else settings.anthropic_api_key
+        resolved_api_key = (
+            api_key if api_key is not None else (settings.anthropic_api_key if settings is not None else None)
+        )
         self._model = (
             model
             if model is not None
-            else settings.anthropic_generate_model or DEFAULT_GENERATE_MODEL
+            else (settings.anthropic_generate_model or DEFAULT_GENERATE_MODEL if settings is not None else DEFAULT_GENERATE_MODEL)
         )
-        self._min_confidence = settings.min_confidence
+        self._min_confidence = (
+            min_confidence
+            if min_confidence is not None
+            else settings.min_confidence  # type: ignore[union-attr]
+        )
 
         if anthropic_client is not None:
             self._client = anthropic_client
@@ -607,7 +624,7 @@ class KBGenerator:
                         dir=live_parent,
                     )
                 )
-                shutil.rmtree(backup_dir)
+                shutil.rmtree(backup_dir, ignore_errors=True)
                 live_kb_dir.rename(backup_dir)
 
             stage_dir.rename(live_kb_dir)

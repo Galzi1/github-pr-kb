@@ -40,7 +40,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           RUN_INTEGRATION_TESTS: "1"
-        run: uv run python -m pytest tests/ -v -m "not e2e"
+        run: .venv/bin/python -m pytest tests/ -v -m "not e2e"
 
   phase7-e2e:
     if: github.event_name == 'merge_group'
@@ -58,4 +58,4 @@ jobs:
         run: uv sync --all-groups --frozen
 
       - name: Run phase 7 e2e harness
-        run: uv run python -m pytest tests/test_phase7_uat_envs.py -v -m e2e
+        run: .venv/bin/python -m pytest tests/test_phase7_uat_envs.py -v -m e2e
