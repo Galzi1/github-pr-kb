@@ -197,3 +197,133 @@ def test_body_hash_different_bodies():
     hash_a = body_hash("Use retry logic for external APIs.")
     hash_b = body_hash("Avoid global state in modules.")
     assert hash_a != hash_b
+
+
+def test_parse_failure_returns_none(cache_dir_with_pr):
+    from github_pr_kb.classifier import PRClassifier, body_hash
+
+    mock_message = make_mock_message("NOT VALID JSON {{{")
+
+    with patch("github_pr_kb.classifier.Anthropic") as MockAnthropic:
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_message
+        MockAnthropic.return_value = mock_client
+
+        classifier = PRClassifier(cache_dir=cache_dir_with_pr, api_key="sk-ant-fake")
+        comment = PRFile.model_validate_json(
+            (cache_dir_with_pr / "pr-1.json").read_text(encoding="utf-8")
+        ).comments[0]
+
+        result = classifier._classify_comment(comment)
+
+    assert result is None
+    assert classifier._failed_count == 1
+    assert body_hash(comment.body) not in classifier._index
+
+
+def test_load_index_filters_failed(tmp_path):
+    from github_pr_kb.classifier import PRClassifier
+
+    index_path = tmp_path / "classification-index.json"
+    index_path.write_text(
+        json.dumps(
+            {
+                "hash1": {
+                    "category": "gotcha",
+                    "confidence": 0.9,
+                    "summary": "real summary",
+                    "classified_at": "2026-01-01T00:00:00+00:00",
+                },
+                "hash2": {
+                    "category": "other",
+                    "confidence": 0.0,
+                    "summary": "classification failed",
+                    "classified_at": "2026-01-01T00:00:00+00:00",
+                },
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    with patch("github_pr_kb.classifier.Anthropic"):
+        classifier = PRClassifier(cache_dir=tmp_path, api_key="sk-ant-fake")
+
+    assert "hash1" in classifier._index
+    assert "hash2" not in classifier._index
+
+
+def test_load_index_keeps_valid(tmp_path):
+    from github_pr_kb.classifier import PRClassifier
+
+    index_path = tmp_path / "classification-index.json"
+    index_path.write_text(
+        json.dumps(
+            {
+                "hash1": {
+                    "category": "gotcha",
+                    "confidence": 0.9,
+                    "summary": "real summary 1",
+                    "classified_at": "2026-01-01T00:00:00+00:00",
+                },
+                "hash2": {
+                    "category": "code_pattern",
+                    "confidence": 0.8,
+                    "summary": "real summary 2",
+                    "classified_at": "2026-01-01T00:00:00+00:00",
+                },
+                "hash3": {
+                    "category": "other",
+                    "confidence": 0.75,
+                    "summary": "real summary 3",
+                    "classified_at": "2026-01-01T00:00:00+00:00",
+                },
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    with patch("github_pr_kb.classifier.Anthropic"):
+        classifier = PRClassifier(cache_dir=tmp_path, api_key="sk-ant-fake")
+
+    assert set(classifier._index) == {"hash1", "hash2", "hash3"}
+
+
+def test_classifier_summary_counts_include_cached_review(cache_dir_with_pr):
+    from github_pr_kb.classifier import PRClassifier, body_hash
+
+    comment = PRFile.model_validate_json(
+        (cache_dir_with_pr / "pr-1.json").read_text(encoding="utf-8")
+    ).comments[0]
+    (cache_dir_with_pr / "classification-index.json").write_text(
+        json.dumps(
+            {
+                body_hash(comment.body): {
+                    "category": "gotcha",
+                    "confidence": 0.6,
+                    "summary": "cached low confidence item",
+                    "classified_at": "2026-01-01T00:00:00+00:00",
+                }
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    with patch("github_pr_kb.classifier.Anthropic") as MockAnthropic:
+        mock_client = MagicMock()
+        MockAnthropic.return_value = mock_client
+
+        classifier = PRClassifier(cache_dir=cache_dir_with_pr, api_key="sk-ant-fake")
+        result = classifier._classify_comment(comment)
+
+    assert result is not None
+    assert result.needs_review is True
+    assert classifier.get_summary_counts() == {
+        "new": 0,
+        "cached": 1,
+        "need_review": 1,
+        "failed": 0,
+    }
+    mock_client.messages.create.assert_not_called()

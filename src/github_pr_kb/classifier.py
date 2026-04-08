@@ -103,7 +103,15 @@ class PRClassifier:
         try:
             content = index_path.read_text(encoding="utf-8")
             data: dict[str, dict] = json.loads(content)
-            logger.debug("Loaded classification index with %d entries", len(data))
+            data = {
+                key: value
+                for key, value in data.items()
+                if value.get("summary") != "classification failed"
+            }
+            logger.debug(
+                "Loaded classification index with %d entries (failed entries pruned)",
+                len(data),
+            )
             return data
         except FileNotFoundError:
             return {}
@@ -131,13 +139,16 @@ class PRClassifier:
             logger.debug("Cache hit for comment %d (hash %s)", comment.comment_id, h[:8])
             self._cache_hit_count += 1
             cached_confidence = float(cached.get("confidence", 0.0))
+            needs_review = cached_confidence < 0.75
+            if needs_review:
+                self._review_count += 1
             return ClassifiedComment(
                 comment_id=comment.comment_id,
                 category=cached["category"],
                 confidence=cached_confidence,
                 summary=cached.get("summary", ""),
                 classified_at=datetime.fromisoformat(cached["classified_at"]),
-                needs_review=cached_confidence < 0.75,
+                needs_review=needs_review,
             )
 
         api_body = comment.body[:10_000]
@@ -164,7 +175,8 @@ class PRClassifier:
                 "Could not parse classification JSON for comment %d", comment.comment_id
             )
             logger.debug("Raw response text: %s", text)
-            result = {"category": "other", "confidence": 0.0, "summary": "classification failed"}
+            self._failed_count += 1
+            return None
 
         raw_category = result.get("category", "other")
         category: CategoryLiteral = raw_category if raw_category in VALID_CATEGORIES else "other"  # type: ignore[assignment]
@@ -244,11 +256,21 @@ class PRClassifier:
 
     def print_summary(self) -> None:
         """Print and log a summary of the classification run."""
+        counts = self.get_summary_counts()
         msg = (
-            f"Classification complete: {self._classified_count} classified, "
-            f"{self._cache_hit_count} cache hits, "
-            f"{self._review_count} need review, "
-            f"{self._failed_count} failed"
+            f"Classification complete: {counts['new']} classified, "
+            f"{counts['cached']} cache hits, "
+            f"{counts['need_review']} need review, "
+            f"{counts['failed']} failed"
         )
         print(msg)
         logger.info(msg)
+
+    def get_summary_counts(self) -> dict[str, int]:
+        """Return the published classify summary counters for the current run."""
+        return {
+            "new": self._classified_count,
+            "cached": self._cache_hit_count,
+            "need_review": self._review_count,
+            "failed": self._failed_count,
+        }

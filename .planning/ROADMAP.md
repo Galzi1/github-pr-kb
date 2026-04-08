@@ -137,9 +137,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 07-01-PLAN.md — Fix classifier failure handling, extend config with new settings, extend GenerateResult model
-- [ ] 07-02-PLAN.md — Replace raw-comment-copy generator with Claude-powered synthesis, add confidence filtering and regeneration
-- [ ] 07-03-PLAN.md — Fix CLI output accuracy, add --regenerate flag, API key validation for generate
+- [x] 07-01-PLAN.md — Fix classifier failure handling, extend config with new settings, extend GenerateResult model
+- [x] 07-02-PLAN.md — Replace raw-comment-copy generator with Claude-powered synthesis, add confidence filtering and regeneration
+- [x] 07-03-PLAN.md — Fix CLI output accuracy, add --regenerate flag, API key validation for generate
 
 ### Phase 8: GitHub Action + README
 **Goal**: A repository maintainer can add a provided workflow file and have PR comments automatically extracted and the KB updated on a schedule, with no wasted API calls when nothing is new, and a new user can get from zero to a generated KB by following the README alone.
@@ -169,5 +169,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 4. Claude Classifier | 2/2 | Complete   | 2026-04-05 |
 | 5. KB Generator | 2/2 | Complete   | 2026-04-06 |
 | 6. CLI Integration | 1/1 | Complete   | 2026-04-06 |
-| 7. Fix Article Generation Quality | 0/3 | Not started | - |
+| 7. Fix Article Generation Quality | 3/3 | Ready for verification | - |
 | 8. GitHub Action + README | 0/TBD | Not started | - |
