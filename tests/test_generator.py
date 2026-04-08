@@ -753,7 +753,7 @@ def test_generate_requires_api_key(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
         KBGenerator(cache_dir=tmp_path, kb_dir=tmp_path / "kb")
 
 
-def test_generate_model_env_var(
+def test_generator_uses_configured_generate_model(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     fake_anthropic_client: MagicMock,
@@ -773,3 +773,40 @@ def test_generate_model_env_var(
 
     gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client)
     assert gen._model == "claude-sonnet-test"
+
+
+def test_generator_uses_configured_min_confidence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    fake_anthropic_client: MagicMock,
+) -> None:
+    import github_pr_kb.config as config_module
+
+    _write_classified_pair(
+        tmp_path,
+        comment_id=401,
+        comment_body="This should be filtered by the configured threshold.",
+        confidence=0.60,
+        summary="Configured threshold should filter this",
+        needs_review=True,
+    )
+
+    monkeypatch.setattr(
+        config_module,
+        "settings",
+        SimpleNamespace(
+            kb_output_dir="kb",
+            anthropic_api_key="sk-ant-fake",
+            anthropic_generate_model=None,
+            min_confidence=0.65,
+        ),
+    )
+
+    kb_dir = tmp_path / "kb"
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    result = gen.generate_all()
+
+    assert gen._min_confidence == pytest.approx(0.65)
+    assert result.filtered == 1
+    assert result.written == 0
+    fake_anthropic_client.messages.create.assert_not_called()

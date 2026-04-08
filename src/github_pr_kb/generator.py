@@ -147,25 +147,32 @@ class KBGenerator:
             or min_confidence is None
         )
         if needs_settings:
-            from github_pr_kb.config import settings
+            from github_pr_kb.config import settings as config_settings
         else:
-            settings = None  # type: ignore[assignment]
+            config_settings = None
 
-        self._kb_dir = kb_dir if kb_dir is not None else Path(settings.kb_output_dir)
+        if kb_dir is None:
+            assert config_settings is not None
+            self._kb_dir = Path(config_settings.kb_output_dir)
+        else:
+            self._kb_dir = kb_dir
 
-        resolved_api_key = (
-            api_key if api_key is not None else (settings.anthropic_api_key if settings is not None else None)
-        )
-        self._model = (
-            model
-            if model is not None
-            else (settings.anthropic_generate_model or DEFAULT_GENERATE_MODEL if settings is not None else DEFAULT_GENERATE_MODEL)
-        )
-        self._min_confidence = (
-            min_confidence
-            if min_confidence is not None
-            else settings.min_confidence  # type: ignore[union-attr]
-        )
+        resolved_api_key = api_key
+        if resolved_api_key is None and config_settings is not None:
+            resolved_api_key = config_settings.anthropic_api_key
+
+        if model is not None:
+            self._model = model
+        elif config_settings is not None and config_settings.anthropic_generate_model:
+            self._model = config_settings.anthropic_generate_model
+        else:
+            self._model = DEFAULT_GENERATE_MODEL
+
+        if min_confidence is None:
+            assert config_settings is not None
+            self._min_confidence = config_settings.min_confidence
+        else:
+            self._min_confidence = min_confidence
 
         if anthropic_client is not None:
             self._client = anthropic_client

@@ -16,7 +16,7 @@ import anthropic
 import httpx
 from click.testing import CliRunner, Result
 
-from github_pr_kb.classifier import body_hash
+from github_pr_kb.classifier import LEGACY_FAILURE_SUMMARY, body_hash
 from github_pr_kb.cli import cli
 from github_pr_kb.models import (
     ClassifiedComment,
@@ -225,7 +225,7 @@ def _materialize_classify_output(env_dir: Path, scenario: Scenario) -> None:
             "stale-failed-entry": {
                 "category": "other",
                 "confidence": 0.0,
-                "summary": "classification failed",
+                "summary": LEGACY_FAILURE_SUMMARY,
                 "classified_at": _NOW.isoformat(),
             },
         },

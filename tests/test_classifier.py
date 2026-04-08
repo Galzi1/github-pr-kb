@@ -11,7 +11,12 @@ from unittest.mock import MagicMock, patch
 import anthropic
 import pytest
 
-from github_pr_kb.classifier import DEFAULT_COMMENT_CHUNK_SIZE, DEFAULT_MODEL
+from github_pr_kb.classifier import (
+    DEFAULT_COMMENT_CHUNK_SIZE,
+    DEFAULT_MODEL,
+    DEFAULT_REVIEW_CONFIDENCE_THRESHOLD,
+    LEGACY_FAILURE_SUMMARY,
+)
 from github_pr_kb.models import (
     ClassifiedFile,
     CommentRecord,
@@ -87,7 +92,7 @@ def test_classify_returns_valid_category(cache_dir_with_pr):
 
 
 def test_needs_review_flag_low_confidence(cache_dir_with_pr):
-    """When confidence < 0.75, needs_review must be True."""
+    """When confidence falls below the review threshold, needs_review must be True."""
     from github_pr_kb.classifier import PRClassifier
 
     response_json = json.dumps({
@@ -109,7 +114,7 @@ def test_needs_review_flag_low_confidence(cache_dir_with_pr):
 
 
 def test_needs_review_flag_high_confidence(cache_dir_with_pr):
-    """When confidence >= 0.75, needs_review must be False."""
+    """When confidence meets the review threshold, needs_review must be False."""
     from github_pr_kb.classifier import PRClassifier
 
     response_json = json.dumps({
@@ -237,7 +242,7 @@ def test_load_index_filters_failed(tmp_path):
                 "hash2": {
                     "category": "other",
                     "confidence": 0.0,
-                    "summary": "classification failed",
+                    "summary": LEGACY_FAILURE_SUMMARY,
                     "classified_at": "2026-01-01T00:00:00+00:00",
                 },
             },
@@ -323,7 +328,7 @@ def test_load_index_keeps_valid(tmp_path):
                 },
                 "hash3": {
                     "category": "other",
-                    "confidence": 0.75,
+                    "confidence": DEFAULT_REVIEW_CONFIDENCE_THRESHOLD,
                     "summary": "real summary 3",
                     "classified_at": "2026-01-01T00:00:00+00:00",
                 },

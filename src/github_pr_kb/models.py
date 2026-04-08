@@ -52,7 +52,7 @@ class ClassifiedComment(BaseModel):
     confidence: float
     summary: str
     classified_at: datetime
-    needs_review: bool  # True when confidence < 0.75 (per D-06)
+    needs_review: bool  # True when confidence falls below the review threshold (per D-06)
 
 
 class ClassifiedFile(BaseModel):

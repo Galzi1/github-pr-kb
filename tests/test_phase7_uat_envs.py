@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from github_pr_kb.classifier import LEGACY_FAILURE_SUMMARY
 from tests.support.phase7_uat_envs import run_scenario, setup_all
 
 pytestmark = pytest.mark.e2e
@@ -34,7 +35,7 @@ def test_run_classify_output_scenario(tmp_path: Path) -> None:
         )
     )
     assert all(
-        entry.get("summary") != "classification failed" for entry in index.values()
+        entry.get("summary") != LEGACY_FAILURE_SUMMARY for entry in index.values()
     )
 
 
