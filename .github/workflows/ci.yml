@@ -43,7 +43,7 @@ jobs:
         run: .venv/bin/python -m pytest tests/ -v -m "not e2e"
 
   phase7-e2e:
-    if: github.event_name == 'merge_group'
+    name: phase7-e2e
     runs-on: ubuntu-latest
 
     steps:
