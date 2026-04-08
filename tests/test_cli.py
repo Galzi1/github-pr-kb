@@ -1,9 +1,8 @@
-"""CliRunner-based tests for the github-pr-kb CLI.
+"""CliRunner-based tests for the github-pr-kb CLI."""
 
-All tests use click.testing.CliRunner with mix_stderr=False to keep
-stdout and stderr separate for independent assertion.
-"""
-from unittest.mock import patch
+import inspect
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -13,13 +12,13 @@ from github_pr_kb.cli import cli
 
 @pytest.fixture
 def runner() -> CliRunner:
-    # mix_stderr was removed in Click 8.2 — stderr is always separate now.
     return CliRunner()
 
 
-# ---------------------------------------------------------------------------
-# Help text tests (CLI-04)
-# ---------------------------------------------------------------------------
+def _classified_cache_dir(*paths: str) -> MagicMock:
+    cache_dir = MagicMock()
+    cache_dir.glob.return_value = [Path(path) for path in paths]
+    return cache_dir
 
 
 def test_extract_help(runner: CliRunner) -> None:
@@ -43,6 +42,7 @@ def test_classify_help(runner: CliRunner) -> None:
 def test_generate_help(runner: CliRunner) -> None:
     result = runner.invoke(cli, ["generate", "--help"])
     assert result.exit_code == 0
+    assert "--regenerate" in result.output
     assert "--verbose" in result.output
     assert "Generate markdown" in result.output
 
@@ -55,19 +55,12 @@ def test_run_help(runner: CliRunner) -> None:
     assert "pipeline" in result.output.lower()
 
 
-# ---------------------------------------------------------------------------
-# Usage error tests (CLI-04)
-# ---------------------------------------------------------------------------
-
-
 def test_extract_missing_repo(runner: CliRunner) -> None:
-    """Missing required --repo option should exit 2."""
     result = runner.invoke(cli, ["extract"])
     assert result.exit_code == 2
 
 
 def test_extract_bad_date(runner: CliRunner) -> None:
-    """Bad ISO date for --since should exit 2 with a hint about ISO date."""
     result = runner.invoke(
         cli,
         ["extract", "--repo", "owner/repo", "--since", "not-a-date"],
@@ -78,13 +71,7 @@ def test_extract_bad_date(runner: CliRunner) -> None:
     assert "ISO date" in combined
 
 
-# ---------------------------------------------------------------------------
-# Happy path tests (CLI-01, CLI-02, CLI-03)
-# ---------------------------------------------------------------------------
-
-
 def test_extract_runs(runner: CliRunner) -> None:
-    """extract command mocked: should exit 0 and print 'Extracted'."""
     with patch("github_pr_kb.extractor.GitHubExtractor") as mock_cls:
         instance = mock_cls.return_value
         instance.extract.return_value = []
@@ -98,51 +85,216 @@ def test_extract_runs(runner: CliRunner) -> None:
 
 
 def test_classify_runs(runner: CliRunner) -> None:
-    """classify command mocked: should exit 0, print 'Classified', not duplicate print_summary output."""
     with patch("github_pr_kb.classifier.PRClassifier") as mock_cls:
         instance = mock_cls.return_value
         instance.classify_all.return_value = []
-        instance._classified_count = 3
-        instance._cache_hit_count = 2
+        instance.get_summary_counts.return_value = {
+            "new": 3,
+            "cached": 2,
+            "need_review": 1,
+            "failed": 0,
+        }
         result = runner.invoke(
             cli,
             ["classify"],
             env={"GITHUB_TOKEN": "fake", "ANTHROPIC_API_KEY": "fake"},
         )
+
     assert result.exit_code == 0, result.output
-    assert "Classified" in result.output
-    # Verify classifier's own print_summary is suppressed — no "Classification complete:" in output
+    assert "Classified 3 new, 2 cached, 1 need review, 0 failed." in result.output
     assert "Classification complete:" not in result.output
 
 
+def test_classify_review_label_matches_metric(runner: CliRunner) -> None:
+    with patch("github_pr_kb.classifier.PRClassifier") as mock_cls:
+        instance = mock_cls.return_value
+        instance.classify_all.return_value = []
+        instance.get_summary_counts.return_value = {
+            "new": 0,
+            "cached": 4,
+            "need_review": 4,
+            "failed": 1,
+        }
+        result = runner.invoke(
+            cli,
+            ["classify"],
+            env={"GITHUB_TOKEN": "fake", "ANTHROPIC_API_KEY": "fake"},
+        )
+
+    assert result.exit_code == 0
+    assert "4 need review" in result.output
+    assert "new need review" not in result.output
+
+
 def test_generate_runs(runner: CliRunner) -> None:
-    """generate command mocked: should exit 0 and print 'Generated'."""
     from github_pr_kb.generator import GenerateResult
 
-    with patch("github_pr_kb.generator.KBGenerator") as mock_cls:
+    with (
+        patch("github_pr_kb.generator.DEFAULT_CACHE_DIR", _classified_cache_dir("classified-pr-1.json")),
+        patch("github_pr_kb.generator.KBGenerator") as mock_cls,
+    ):
         instance = mock_cls.return_value
-        instance.generate_all.return_value = GenerateResult(written=5, skipped=2, failed=[])
+        instance.generate_all.return_value = GenerateResult(
+            written=5,
+            skipped=2,
+            filtered=3,
+            failed=[],
+        )
         result = runner.invoke(
             cli,
             ["generate"],
             env={"GITHUB_TOKEN": "fake", "ANTHROPIC_API_KEY": "fake"},
         )
+
     assert result.exit_code == 0, result.output
-    assert "Generated" in result.output
+    assert "Generated 5 new, 2 skipped, 3 filtered, 0 failed." in result.output
 
 
-# ---------------------------------------------------------------------------
-# Run pipeline test (D-01)
-# ---------------------------------------------------------------------------
+def test_generate_regenerate_flag(runner: CliRunner) -> None:
+    from github_pr_kb.generator import GenerateResult
+
+    with (
+        patch("github_pr_kb.generator.DEFAULT_CACHE_DIR", _classified_cache_dir("classified-pr-1.json")),
+        patch("github_pr_kb.generator.KBGenerator") as mock_cls,
+    ):
+        instance = mock_cls.return_value
+        instance.generate_all.return_value = GenerateResult(
+            written=1,
+            skipped=0,
+            filtered=0,
+            failed=[],
+        )
+        result = runner.invoke(
+            cli,
+            ["generate", "--regenerate"],
+            env={"GITHUB_TOKEN": "fake", "ANTHROPIC_API_KEY": "fake"},
+        )
+
+    assert result.exit_code == 0, result.output
+    instance.generate_all.assert_called_once_with(regenerate=True)
+
+
+def test_generate_no_classified_input_exit_code(runner: CliRunner) -> None:
+    with patch("github_pr_kb.generator.DEFAULT_CACHE_DIR", _classified_cache_dir()):
+        result = runner.invoke(
+            cli,
+            ["generate"],
+            env={"GITHUB_TOKEN": "fake", "ANTHROPIC_API_KEY": "fake"},
+        )
+
+    assert result.exit_code == 1
+    combined = result.output + (result.stderr or "")
+    assert "run `github-pr-kb classify` before `github-pr-kb generate`" in combined
+
+
+def test_generate_missing_api_key(runner: CliRunner) -> None:
+    with (
+        patch("github_pr_kb.generator.DEFAULT_CACHE_DIR", _classified_cache_dir("classified-pr-1.json")),
+        patch("github_pr_kb.generator.KBGenerator", side_effect=ValueError("ANTHROPIC_API_KEY is required for article generation.")),
+    ):
+        result = runner.invoke(
+            cli,
+            ["generate"],
+            env={"GITHUB_TOKEN": "fake", "ANTHROPIC_API_KEY": "fake"},
+        )
+
+    assert result.exit_code == 1
+    combined = result.output + (result.stderr or "")
+    assert "ANTHROPIC_API_KEY for article generation" in combined
+
+
+def test_generate_partial_failure_warning(runner: CliRunner) -> None:
+    from github_pr_kb.generator import GenerateResult
+
+    with (
+        patch("github_pr_kb.generator.DEFAULT_CACHE_DIR", _classified_cache_dir("classified-pr-1.json")),
+        patch("github_pr_kb.generator.KBGenerator") as mock_cls,
+    ):
+        instance = mock_cls.return_value
+        instance.generate_all.return_value = GenerateResult(
+            written=1,
+            skipped=0,
+            filtered=0,
+            failed=[{"file": "gotcha/test.md", "reason": "APIError", "detail": "boom"}],
+        )
+        result = runner.invoke(
+            cli,
+            ["generate"],
+            env={"GITHUB_TOKEN": "fake", "ANTHROPIC_API_KEY": "fake"},
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "Generated 1 new, 0 skipped, 0 filtered, 1 failed." in result.output
+    assert "Warning: 1 article(s) failed synthesis." in (result.stderr or "")
+
+
+def test_generate_total_failure_exit_code(runner: CliRunner) -> None:
+    from github_pr_kb.generator import GenerateResult
+
+    with (
+        patch("github_pr_kb.generator.DEFAULT_CACHE_DIR", _classified_cache_dir("classified-pr-1.json")),
+        patch("github_pr_kb.generator.KBGenerator") as mock_cls,
+    ):
+        instance = mock_cls.return_value
+        instance.generate_all.return_value = GenerateResult(
+            written=0,
+            skipped=0,
+            filtered=0,
+            failed=[{"file": "gotcha/test.md", "reason": "APIError", "detail": "boom"}],
+        )
+        result = runner.invoke(
+            cli,
+            ["generate"],
+            env={"GITHUB_TOKEN": "fake", "ANTHROPIC_API_KEY": "fake"},
+        )
+
+    assert result.exit_code == 1
+    combined = result.output + (result.stderr or "")
+    assert "no output was produced" in combined
+
+
+def test_generate_unexpected_exception_surfaces_clear_error(runner: CliRunner) -> None:
+    with (
+        patch("github_pr_kb.generator.DEFAULT_CACHE_DIR", _classified_cache_dir("classified-pr-1.json")),
+        patch("github_pr_kb.generator.KBGenerator") as mock_cls,
+    ):
+        instance = mock_cls.return_value
+        instance.generate_all.side_effect = RuntimeError("staged generation failed")
+        result = runner.invoke(
+            cli,
+            ["generate", "--regenerate"],
+            env={"GITHUB_TOKEN": "fake", "ANTHROPIC_API_KEY": "fake"},
+        )
+
+    assert result.exit_code == 1
+    combined = result.output + (result.stderr or "")
+    assert "Generation failed: staged generation failed" in combined
+
+
+def test_generate_unrelated_value_error_not_rewritten(runner: CliRunner) -> None:
+    with (
+        patch("github_pr_kb.generator.DEFAULT_CACHE_DIR", _classified_cache_dir("classified-pr-1.json")),
+        patch("github_pr_kb.generator.KBGenerator", side_effect=ValueError("bad threshold")),
+    ):
+        result = runner.invoke(
+            cli,
+            ["generate"],
+            env={"GITHUB_TOKEN": "fake", "ANTHROPIC_API_KEY": "fake"},
+        )
+
+    assert result.exit_code == 1
+    combined = result.output + (result.stderr or "")
+    assert "bad threshold" in combined
+    assert "ANTHROPIC_API_KEY for article generation" not in combined
 
 
 def test_run_pipelines(runner: CliRunner) -> None:
-    """run command should pipeline all three steps and print all three summaries."""
     from github_pr_kb.generator import GenerateResult
 
     with (
         patch("github_pr_kb.extractor.GitHubExtractor") as mock_extract_cls,
         patch("github_pr_kb.classifier.PRClassifier") as mock_classify_cls,
+        patch("github_pr_kb.generator.DEFAULT_CACHE_DIR", _classified_cache_dir("classified-pr-1.json")),
         patch("github_pr_kb.generator.KBGenerator") as mock_generate_cls,
     ):
         ext_inst = mock_extract_cls.return_value
@@ -150,11 +302,20 @@ def test_run_pipelines(runner: CliRunner) -> None:
 
         cls_inst = mock_classify_cls.return_value
         cls_inst.classify_all.return_value = []
-        cls_inst._classified_count = 2
-        cls_inst._cache_hit_count = 1
+        cls_inst.get_summary_counts.return_value = {
+            "new": 2,
+            "cached": 1,
+            "need_review": 1,
+            "failed": 0,
+        }
 
         gen_inst = mock_generate_cls.return_value
-        gen_inst.generate_all.return_value = GenerateResult(written=3, skipped=0, failed=[])
+        gen_inst.generate_all.return_value = GenerateResult(
+            written=3,
+            skipped=0,
+            filtered=0,
+            failed=[],
+        )
 
         result = runner.invoke(
             cli,
@@ -164,17 +325,12 @@ def test_run_pipelines(runner: CliRunner) -> None:
 
     assert result.exit_code == 0, result.output
     assert "Extracted" in result.output
-    assert "Classified" in result.output
-    assert "Generated" in result.output
-
-
-# ---------------------------------------------------------------------------
-# Run fail-fast test (D-10)
-# ---------------------------------------------------------------------------
+    assert "Classified 2 new, 1 cached, 1 need review, 0 failed." in result.output
+    assert "Generated 3 new, 0 skipped, 0 filtered, 0 failed." in result.output
+    gen_inst.generate_all.assert_called_once_with(regenerate=False)
 
 
 def test_run_fails_fast(runner: CliRunner) -> None:
-    """run command should fail fast if extract raises — classify and generate must not be called."""
     with (
         patch("github_pr_kb.extractor.GitHubExtractor") as mock_extract_cls,
         patch("github_pr_kb.classifier.PRClassifier") as mock_classify_cls,
@@ -192,28 +348,13 @@ def test_run_fails_fast(runner: CliRunner) -> None:
     assert result.exit_code == 1
     combined = result.output.lower() + (result.stderr or "").lower()
     assert "pipeline" in combined or "failed" in combined
-
-    # classify and generate must not have been instantiated
     mock_classify_cls.assert_not_called()
     mock_generate_cls.assert_not_called()
 
 
-# ---------------------------------------------------------------------------
-# Config error test (CLI-04)
-# ---------------------------------------------------------------------------
-
-
 def test_extract_missing_token(runner: CliRunner) -> None:
-    """Missing GITHUB_TOKEN should exit 1 with a config error message.
-
-    Uses mock to simulate ValidationError at GitHubExtractor construction time,
-    because the settings singleton is cached at module level and CliRunner's
-    env= kwarg cannot trigger a fresh Settings() construction.
-    """
     from pydantic import ValidationError as PydanticValidationError
 
-    # Build a minimal ValidationError to use as a side_effect.
-    # Simulate missing GITHUB_TOKEN by patching GitHubExtractor to raise it.
     with patch("github_pr_kb.extractor.GitHubExtractor") as mock_cls:
         mock_cls.side_effect = PydanticValidationError.from_exception_data(
             title="Settings",
@@ -236,5 +377,13 @@ def test_extract_missing_token(runner: CliRunner) -> None:
 
     assert result.exit_code == 1
     combined = result.output + (result.stderr or "")
-    # Should contain config error hint, not a raw traceback
     assert "Configuration error" in combined or "GITHUB_TOKEN" in combined
+
+
+def test_cli_contract_matches_upstream_interfaces() -> None:
+    from github_pr_kb.classifier import PRClassifier
+    from github_pr_kb.generator import GenerateResult, KBGenerator
+
+    assert "filtered" in GenerateResult.model_fields
+    assert "regenerate" in inspect.signature(KBGenerator.generate_all).parameters
+    assert hasattr(PRClassifier, "get_summary_counts")

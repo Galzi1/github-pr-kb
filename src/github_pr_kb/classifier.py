@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CACHE_DIR = Path(".github-pr-kb/cache")
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+DEFAULT_REVIEW_CONFIDENCE_THRESHOLD = 0.75
+DEFAULT_COMMENT_CHUNK_SIZE = 10_000
+LEGACY_FAILURE_SUMMARY = "classification failed"
 
 VALID_CATEGORIES: set[str] = {
     "architecture_decision",
@@ -77,6 +80,8 @@ class PRClassifier:
         cache_dir: Path = DEFAULT_CACHE_DIR,
         model: str | None = None,
         api_key: str | None = None,
+        review_confidence_threshold: float = DEFAULT_REVIEW_CONFIDENCE_THRESHOLD,
+        comment_chunk_size: int = DEFAULT_COMMENT_CHUNK_SIZE,
     ) -> None:
         from github_pr_kb.config import settings
         if api_key is None:
@@ -91,11 +96,48 @@ class PRClassifier:
         self._client = Anthropic(api_key=api_key, max_retries=2)
         self._cache_dir = cache_dir
         self._model = model
+        self._review_confidence_threshold = review_confidence_threshold
+        self._comment_chunk_size = comment_chunk_size
         self._index: dict[str, dict] = self._load_index()
         self._classified_count = 0
         self._cache_hit_count = 0
         self._failed_count = 0
         self._review_count = 0
+
+    def _is_legacy_failure_entry(self, cached_entry: dict) -> bool:
+        """Return True for stale cache entries that recorded failed classifications."""
+        return (
+            cached_entry.get("summary") == LEGACY_FAILURE_SUMMARY
+            and cached_entry.get("confidence") == 0.0
+            and cached_entry.get("category") == "other"
+        )
+
+    def _needs_review(self, confidence: float) -> bool:
+        """Return True when a classification falls below the review threshold."""
+        return confidence < self._review_confidence_threshold
+
+    def _build_api_body(self, body: str) -> str:
+        """Preserve the full comment body, chunking only for transport readability."""
+        chunks = [
+            body[start:start + self._comment_chunk_size]
+            for start in range(0, len(body), self._comment_chunk_size)
+        ]
+        if len(chunks) == 1:
+            return body
+
+        formatted_chunks = "\n\n".join(
+            (
+                f"<comment_chunk index=\"{index}\" total=\"{len(chunks)}\">\n"
+                f"{chunk}\n"
+                "</comment_chunk>"
+            )
+            for index, chunk in enumerate(chunks, start=1)
+        )
+        return (
+            "The GitHub PR comment below is split into sequential chunks to preserve the full "
+            "body. Read all chunks as one comment before classifying.\n\n"
+            f"{formatted_chunks}"
+        )
 
     def _load_index(self) -> dict[str, dict]:
         """Load classification-index.json from cache dir, or return empty dict."""
@@ -103,7 +145,15 @@ class PRClassifier:
         try:
             content = index_path.read_text(encoding="utf-8")
             data: dict[str, dict] = json.loads(content)
-            logger.debug("Loaded classification index with %d entries", len(data))
+            data = {
+                key: value
+                for key, value in data.items()
+                if not self._is_legacy_failure_entry(value)
+            }
+            logger.debug(
+                "Loaded classification index with %d entries (failed entries pruned)",
+                len(data),
+            )
             return data
         except FileNotFoundError:
             return {}
@@ -131,16 +181,19 @@ class PRClassifier:
             logger.debug("Cache hit for comment %d (hash %s)", comment.comment_id, h[:8])
             self._cache_hit_count += 1
             cached_confidence = float(cached.get("confidence", 0.0))
+            needs_review = self._needs_review(cached_confidence)
+            if needs_review:
+                self._review_count += 1
             return ClassifiedComment(
                 comment_id=comment.comment_id,
                 category=cached["category"],
                 confidence=cached_confidence,
                 summary=cached.get("summary", ""),
                 classified_at=datetime.fromisoformat(cached["classified_at"]),
-                needs_review=cached_confidence < 0.75,
+                needs_review=needs_review,
             )
 
-        api_body = comment.body[:10_000]
+        api_body = self._build_api_body(comment.body)
 
         try:
             response = self._client.messages.create(
@@ -164,13 +217,14 @@ class PRClassifier:
                 "Could not parse classification JSON for comment %d", comment.comment_id
             )
             logger.debug("Raw response text: %s", text)
-            result = {"category": "other", "confidence": 0.0, "summary": "classification failed"}
+            self._failed_count += 1
+            return None
 
         raw_category = result.get("category", "other")
         category: CategoryLiteral = raw_category if raw_category in VALID_CATEGORIES else "other"  # type: ignore[assignment]
         confidence = max(0.0, min(1.0, float(result.get("confidence", 0.0))))
         summary = str(result.get("summary", ""))[:200]
-        needs_review = confidence < 0.75
+        needs_review = self._needs_review(confidence)
 
         classified_at = datetime.now(timezone.utc)
         self._index[h] = {
@@ -244,11 +298,21 @@ class PRClassifier:
 
     def print_summary(self) -> None:
         """Print and log a summary of the classification run."""
+        counts = self.get_summary_counts()
         msg = (
-            f"Classification complete: {self._classified_count} classified, "
-            f"{self._cache_hit_count} cache hits, "
-            f"{self._review_count} need review, "
-            f"{self._failed_count} failed"
+            f"Classification complete: {counts['new']} classified, "
+            f"{counts['cached']} cache hits, "
+            f"{counts['need_review']} need review, "
+            f"{counts['failed']} failed"
         )
         print(msg)
         logger.info(msg)
+
+    def get_summary_counts(self) -> dict[str, int]:
+        """Return the published classify summary counters for the current run."""
+        return {
+            "new": self._classified_count,
+            "cached": self._cache_hit_count,
+            "need_review": self._review_count,
+            "failed": self._failed_count,
+        }

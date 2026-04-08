@@ -44,7 +44,7 @@ class ConfigurationError(click.ClickException):
         hint = (
             "Configuration error -- missing required environment variable.\n"
             "Hint: copy .env.example to .env and fill in GITHUB_TOKEN"
-            " (and ANTHROPIC_API_KEY for classify)."
+            " (and ANTHROPIC_API_KEY for classify/generate)."
         )
         message = f"{hint}\nDetail: {detail}" if detail else hint
         super().__init__(message)
@@ -110,25 +110,58 @@ def _run_classify() -> str:
     classifier.print_summary = lambda: None  # type: ignore[method-assign]
 
     classifier.classify_all()
+    counts = classifier.get_summary_counts()
+    return (
+        f"Classified {counts['new']} new, {counts['cached']} cached, "
+        f"{counts['need_review']} need review, {counts['failed']} failed."
+    )
 
-    classified = getattr(classifier, "_classified_count", 0)
-    cached = getattr(classifier, "_cache_hit_count", 0)
-    total = classified + cached
-    return f"Classified {total} comments ({classified} new, {cached} cached)."
 
-
-def _run_generate() -> str:
+def _run_generate(regenerate: bool = False) -> str:
     """Instantiate KBGenerator, run generate_all, return summary string."""
-    try:
-        from github_pr_kb.generator import KBGenerator
+    from github_pr_kb.generator import DEFAULT_CACHE_DIR, KBGenerator
 
+    if not list(DEFAULT_CACHE_DIR.glob("classified-pr-*.json")):
+        raise click.ClickException(
+            "Generation failed: no classified PR cache found.\n"
+            "Hint: run `github-pr-kb classify` before `github-pr-kb generate`."
+        )
+
+    try:
         generator = KBGenerator()
+    except ValueError as exc:
+        detail = str(exc)
+        if "ANTHROPIC_API_KEY" in detail and "required" in detail:
+            raise click.ClickException(
+                "Configuration error -- missing required environment variable.\n"
+                "Hint: copy .env.example to .env and fill in ANTHROPIC_API_KEY for article generation."
+            ) from exc
+        raise ConfigurationError(detail) from exc
     except Exception as exc:
         raise ConfigurationError(str(exc)) from exc
 
-    result = generator.generate_all()
-    total = result.written + result.skipped
-    return f"Generated {total} articles ({result.written} new, {result.skipped} skipped)."
+    try:
+        result = generator.generate_all(regenerate=regenerate)
+    except Exception as exc:
+        raise click.ClickException(f"Generation failed: {exc}") from exc
+
+    successful_outcomes = result.written + result.skipped + result.filtered
+    if result.failed and successful_outcomes == 0:
+        raise click.ClickException(
+            f"Generation failed: {len(result.failed)} article(s) failed and no output was produced."
+        )
+    if result.failed:
+        click.echo(
+            click.style(
+                f"Warning: {len(result.failed)} article(s) failed synthesis.",
+                fg="yellow",
+            ),
+            err=True,
+        )
+    return (
+        f"Generated {result.written} new, {result.skipped} skipped, "
+        f"{result.filtered} filtered, {len(result.failed)} failed."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -230,12 +263,17 @@ def classify(verbose: bool) -> None:
 
 @cli.command()
 @click.option(
+    "--regenerate",
+    is_flag=True,
+    help="Re-synthesize all articles from scratch after prompt/model/threshold changes.",
+)
+@click.option(
     "-v",
     "--verbose",
     is_flag=True,
     help="Print per-article detail during generation.",
 )
-def generate(verbose: bool) -> None:
+def generate(regenerate: bool, verbose: bool) -> None:
     """Generate markdown knowledge base articles from classified comments.
 
     \b
@@ -244,7 +282,7 @@ def generate(verbose: bool) -> None:
       github-pr-kb generate --verbose
     """
     _configure_logging(verbose)
-    summary = _run_generate()
+    summary = _run_generate(regenerate=regenerate)
     click.echo(click.style(summary, fg="green"))
 
 
@@ -290,7 +328,7 @@ def run(repo: str, verbose: bool) -> None:
 
     # Generate
     try:
-        generate_summary = _run_generate()
+        generate_summary = _run_generate(regenerate=False)
     except click.ClickException as exc:
         raise click.ClickException(f"Pipeline failed at generate step: {exc.format_message()}")
     click.echo(click.style(generate_summary, fg="green"))
