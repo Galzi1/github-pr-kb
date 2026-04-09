@@ -35,10 +35,15 @@ Ship a reusable GitHub Actions workflow and an updated README so maintainers can
 - **D-11:** The README is automation-first: GitHub Action setup comes before local CLI usage.
 - **D-12:** Local setup, environment variables, command reference, and KB output examples are still included after the automation guidance so users can run and inspect the tool manually.
 
+### State Auth Setup
+- **D-13:** Repository-variable auth is dual-mode: the README documents a fine-grained PAT path first as the default quickstart, and a GitHub App path as the optional advanced setup.
+- **D-14:** The workflow supports either auth path for repository-variable writes so users can choose between lower setup burden (PAT) and stronger service-account style isolation (GitHub App).
+
 ### the agent's Discretion
 - Exact event syntax and guard conditions for merged-only PR triggers
 - Bot PR title/branch naming, commit message wording, and update mechanics
 - Whether manual dispatch supports explicit PR targeting, date-range backfill, or both
+- Exact precedence rules when both PAT and GitHub App credentials are configured
 - Exact README section naming and example formatting
 
 </decisions>
