@@ -142,7 +142,7 @@ Plans:
 - [x] 07-03-PLAN.md — Fix CLI output accuracy, add --regenerate flag, API key validation for generate
 
 ### Phase 8: GitHub Action + README
-**Goal**: A repository maintainer can add a provided workflow file and have PR comments automatically extracted and the KB updated on a schedule, with no wasted API calls when nothing is new, and a new user can get from zero to a generated KB by following the README alone.
+**Goal**: A repository maintainer can add a provided workflow file and have PR comments automatically extracted after merged PRs or manual recovery runs, with no wasted API calls when nothing is new, and a new user can get from zero to a generated KB by following the README alone.
 **Depends on**: Phase 7
 **Requirements**: ACTION-01, ACTION-02, ACTION-03, INFRA-03
 **Success Criteria** (what must be TRUE):
@@ -151,10 +151,12 @@ Plans:
   3. Last-run state is persisted across Action runs so incremental executions only process PRs added since the previous successful run
   4. README contains: setup steps (including uv installation), all required environment variables, CLI command reference, and at least one example of KB output
   5. Tests covering this phase's components pass (mocked external APIs where applicable)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 8 to break down)
+- [ ] 08-01-PLAN.md — testable action-state helper for no-new-PR guard and cursor decisions
+- [ ] 08-02-PLAN.md — merged-PR workflow with dual-mode variable auth, cache reuse, and rolling KB PR publication
+- [ ] 08-03-PLAN.md — automation-first README rewrite with PAT quickstart, GitHub App option, and local CLI docs
 
 ## Progress
 
@@ -170,4 +172,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 5. KB Generator | 2/2 | Complete   | 2026-04-06 |
 | 6. CLI Integration | 1/1 | Complete   | 2026-04-06 |
 | 7. Fix Article Generation Quality | 3/3 | Ready for verification | - |
-| 8. GitHub Action + README | 0/TBD | Not started | - |
+| 8. GitHub Action + README | 0/3 | Not started | - |
