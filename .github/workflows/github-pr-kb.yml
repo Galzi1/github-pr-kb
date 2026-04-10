@@ -300,21 +300,7 @@ jobs:
             exit "${status}"
           fi
           rm -f "${stderr_file}"
-          persisted_cursor="$(
-            python - "${fresh_cursor}" "${candidate_cursor}" <<'PY'
-            from datetime import datetime, timezone
-            import sys
-
-            values = []
-            for raw in sys.argv[1:]:
-                if not raw:
-                    continue
-                dt = datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone(timezone.utc)
-                values.append(dt)
-            if values:
-                print(max(values).isoformat().replace("+00:00", "Z"))
-            PY
-          )"
+          persisted_cursor="$(python -c "from datetime import datetime, timezone; import sys; values = [datetime.fromisoformat(raw.replace('Z', '+00:00')).astimezone(timezone.utc) for raw in sys.argv[1:] if raw]; print(max(values).isoformat().replace('+00:00', 'Z') if values else '')" "${fresh_cursor}" "${candidate_cursor}")"
           if [ "${variable_exists}" = "true" ]; then
             gh api --method PATCH "${endpoint}" -f name="${KB_VARIABLE_NAME}" -f value="${persisted_cursor}" >/dev/null
           else
