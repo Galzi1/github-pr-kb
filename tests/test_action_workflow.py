@@ -58,6 +58,9 @@ def test_workflow_bootstraps_tool_checkout_for_copyable_repos() -> None:
     assert "KB_VARIABLES_TOKEN" in text
     assert "KB_VARIABLES_APP_ID" in text
     assert "KB_VARIABLES_APP_PRIVATE_KEY" in text
+    assert "if: ${{ secrets." not in text
+    assert "env.KB_VARIABLES_TOKEN" in text
+    assert "env.KB_VARIABLES_APP_ID" in text
     assert "actions/create-github-app-token" in text
 
     for action in (

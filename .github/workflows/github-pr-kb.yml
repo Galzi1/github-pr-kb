@@ -36,6 +36,10 @@ jobs:
   update-kb:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
+    env:
+      KB_VARIABLES_TOKEN: ${{ secrets.KB_VARIABLES_TOKEN }}
+      KB_VARIABLES_APP_ID: ${{ secrets.KB_VARIABLES_APP_ID }}
+      KB_VARIABLES_APP_PRIVATE_KEY: ${{ secrets.KB_VARIABLES_APP_PRIVATE_KEY }}
 
     steps:
       - name: Checkout target repository
@@ -61,16 +65,16 @@ jobs:
 
       - name: Mint repository-variable GitHub App token
         id: app-token
-        if: ${{ secrets.KB_VARIABLES_APP_ID != '' && secrets.KB_VARIABLES_APP_PRIVATE_KEY != '' }}
+        if: ${{ env.KB_VARIABLES_APP_ID != '' && env.KB_VARIABLES_APP_PRIVATE_KEY != '' }}
         uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
         with:
-          app-id: ${{ secrets.KB_VARIABLES_APP_ID }}
-          private-key: ${{ secrets.KB_VARIABLES_APP_PRIVATE_KEY }}
+          app-id: ${{ env.KB_VARIABLES_APP_ID }}
+          private-key: ${{ env.KB_VARIABLES_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
 
       - name: Validate repository-variable auth configuration
-        if: ${{ steps.app-token.outputs.token == '' && secrets.KB_VARIABLES_TOKEN == '' }}
+        if: ${{ steps.app-token.outputs.token == '' && env.KB_VARIABLES_TOKEN == '' }}
         run: |
           echo "Set KB_VARIABLES_TOKEN or KB_VARIABLES_APP_ID + KB_VARIABLES_APP_PRIVATE_KEY repository secrets." >&2
           exit 1
@@ -98,7 +102,7 @@ jobs:
         id: stored-cursor
         shell: bash
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.KB_VARIABLES_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || env.KB_VARIABLES_TOKEN }}
         run: |
           set -euo pipefail
           endpoint="/repos/${GITHUB_REPOSITORY}/actions/variables/${KB_VARIABLE_NAME}"
@@ -123,7 +127,7 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.KB_VARIABLES_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || env.KB_VARIABLES_TOKEN }}
         run: |
           set -euo pipefail
           latest_merged_at="$(
@@ -247,7 +251,7 @@ jobs:
         if: ${{ steps.decision.outputs.should_run == 'true' && steps.stage-kb.outputs.changed == 'true' }}
         shell: bash
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.KB_VARIABLES_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || env.KB_VARIABLES_TOKEN }}
         run: |
           set -euo pipefail
           existing_pr="$(
@@ -272,7 +276,7 @@ jobs:
         if: ${{ steps.decision.outputs.should_run == 'true' }}
         shell: bash
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.KB_VARIABLES_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || env.KB_VARIABLES_TOKEN }}
         run: |
           set -euo pipefail
           candidate_cursor="${{ steps.decision.outputs.next_cursor }}"
