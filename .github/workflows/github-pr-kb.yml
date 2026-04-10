@@ -1,0 +1,327 @@
+name: Update PR knowledge base
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      since:
+        description: Optional ISO-8601 updated_at cursor override for recovery/backfill
+        required: false
+        type: string
+      force:
+        description: Run even when no newer merged PRs are detected
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: github-pr-kb-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  KB_TOOL_REPOSITORY: galzi/github-pr-kb
+  KB_TOOL_REF: 61276f03d9c952c8f9e5e16288178b92ea430b2d
+  KB_TOOL_PATH: .github-pr-kb-tool
+  KB_VARIABLE_NAME: KB_LAST_SUCCESSFUL_CURSOR
+  KB_BOT_BRANCH: automation/github-pr-kb
+  KB_PR_TITLE: "chore: update PR knowledge base"
+
+jobs:
+  update-kb:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout target repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Checkout github-pr-kb tool
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: ${{ env.KB_TOOL_REPOSITORY }}
+          ref: ${{ env.KB_TOOL_REF }}
+          path: ${{ env.KB_TOOL_PATH }}
+          fetch-depth: 1
+
+      - name: Install tool dependencies
+        run: uv sync --project .github-pr-kb-tool --all-groups --frozen
+
+      - name: Mint repository-variable GitHub App token
+        id: app-token
+        if: ${{ secrets.KB_VARIABLES_APP_ID != '' && secrets.KB_VARIABLES_APP_PRIVATE_KEY != '' }}
+        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
+        with:
+          app-id: ${{ secrets.KB_VARIABLES_APP_ID }}
+          private-key: ${{ secrets.KB_VARIABLES_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Validate repository-variable auth configuration
+        if: ${{ steps.app-token.outputs.token == '' && secrets.KB_VARIABLES_TOKEN == '' }}
+        run: |
+          echo "Set KB_VARIABLES_TOKEN or KB_VARIABLES_APP_ID + KB_VARIABLES_APP_PRIVATE_KEY repository secrets." >&2
+          exit 1
+
+      - name: Restore github-pr-kb cache
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: .github-pr-kb/cache/
+          key: github-pr-kb-cache-${{ runner.os }}-${{ github.repository }}
+          restore-keys: |
+            github-pr-kb-cache-${{ runner.os }}-
+
+      - name: Determine publication base branch
+        id: base-branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            echo "name=${{ github.event.repository.default_branch }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${{ github.event.pull_request.base.ref }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Read stored KB cursor
+        id: stored-cursor
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.KB_VARIABLES_TOKEN }}
+        run: |
+          set -euo pipefail
+          endpoint="/repos/${GITHUB_REPOSITORY}/actions/variables/${KB_VARIABLE_NAME}"
+          stderr_file="$(mktemp)"
+          set +e
+          stored_cursor="$(gh api "${endpoint}" --jq '.value' 2>"${stderr_file}")"
+          status=$?
+          set -e
+          if [ "${status}" -eq 0 ]; then
+            :
+          elif grep -q "404" "${stderr_file}"; then
+            stored_cursor=""
+          else
+            cat "${stderr_file}" >&2
+            exit "${status}"
+          fi
+          rm -f "${stderr_file}"
+          echo "value=${stored_cursor}" >> "$GITHUB_OUTPUT"
+
+      - name: Find latest merged PR updated_at for manual runs
+        id: latest-merged
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.KB_VARIABLES_TOKEN }}
+        run: |
+          set -euo pipefail
+          latest_merged_at="$(
+            gh api "/repos/${GITHUB_REPOSITORY}/pulls?state=closed&sort=updated&direction=desc&per_page=100" \
+              --jq 'map(select(.merged_at != null))[0].updated_at // ""'
+          )"
+          echo "value=${latest_merged_at}" >> "$GITHUB_OUTPUT"
+
+      - name: Decide whether to run the pipeline
+        id: decision
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmd=(uv run --project .github-pr-kb-tool python -m github_pr_kb.action_state --event-name "${GITHUB_EVENT_NAME}")
+          if [ -n "${{ steps.stored-cursor.outputs.value }}" ]; then
+            cmd+=(--stored-cursor "${{ steps.stored-cursor.outputs.value }}")
+          fi
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            cmd+=(--merged --event-updated-at "${{ github.event.pull_request.updated_at }}")
+          else
+            if [ -n "${{ steps.latest-merged.outputs.value }}" ]; then
+              cmd+=(--latest-merged-at "${{ steps.latest-merged.outputs.value }}")
+            fi
+            if [ -n "${{ github.event.inputs.since }}" ]; then
+              cmd+=(--manual-since "${{ github.event.inputs.since }}")
+            fi
+            if [ "${{ github.event.inputs.force }}" = "true" ]; then
+              cmd+=(--force)
+            fi
+          fi
+          decision_json="$("${cmd[@]}")"
+          echo "${decision_json}"
+          DECISION_JSON="${decision_json}" python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          decision = json.loads(os.environ["DECISION_JSON"])
+          for key, value in decision.items():
+              print(f"{key}={'' if value is None else value}")
+          PY
+
+      - name: Skip no-op run
+        if: ${{ steps.decision.outputs.should_run != 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.decision.outputs.reason }}" = "already_processed_auto_event" ]; then
+            echo "Skipping repeated merged event: already_processed_auto_event"
+          else
+            echo "Skipping pipeline: ${{ steps.decision.outputs.reason }}"
+          fi
+
+      - name: Extract PR comments
+        if: ${{ steps.decision.outputs.should_run == 'true' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cmd=(uv run --project .github-pr-kb-tool github-pr-kb extract --repo "${GITHUB_REPOSITORY}" --state closed)
+          if [ -n "${{ steps.decision.outputs.extract_since }}" ]; then
+            cmd+=(--since "${{ steps.decision.outputs.extract_since }}")
+          fi
+          "${cmd[@]}"
+
+      - name: Classify extracted comments
+        if: ${{ steps.decision.outputs.should_run == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run --project .github-pr-kb-tool github-pr-kb classify
+
+      - name: Generate knowledge base
+        if: ${{ steps.decision.outputs.should_run == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run --project .github-pr-kb-tool github-pr-kb generate
+
+      - name: Configure git identity
+        if: ${{ steps.decision.outputs.should_run == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Prepare publication branch
+        if: ${{ steps.decision.outputs.should_run == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "refs/heads/${{ steps.base-branch.outputs.name }}:refs/remotes/origin/${{ steps.base-branch.outputs.name }}"
+          git fetch --no-tags origin "refs/heads/${KB_BOT_BRANCH}:refs/remotes/origin/${KB_BOT_BRANCH}" || true
+          git checkout -B "${KB_BOT_BRANCH}" "refs/remotes/origin/${{ steps.base-branch.outputs.name }}"
+
+      - name: Stage generated KB output
+        id: stage-kb
+        if: ${{ steps.decision.outputs.should_run == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -- 'kb/INDEX.md' 'kb/.manifest.json' ':(glob)kb/**/*.md'
+          if git diff --cached --name-only | grep -q '^\.github-pr-kb/cache/'; then
+            echo ".github-pr-kb/cache must never be staged." >&2
+            exit 1
+          fi
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push KB update branch
+        if: ${{ steps.decision.outputs.should_run == 'true' && steps.stage-kb.outputs.changed == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git commit -m "${KB_PR_TITLE}"
+          git push --force-with-lease origin "${KB_BOT_BRANCH}"
+
+      - name: Create or reuse rolling KB pull request
+        if: ${{ steps.decision.outputs.should_run == 'true' && steps.stage-kb.outputs.changed == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.KB_VARIABLES_TOKEN }}
+        run: |
+          set -euo pipefail
+          existing_pr="$(
+            gh pr list \
+              --state open \
+              --head "${KB_BOT_BRANCH}" \
+              --base "${{ steps.base-branch.outputs.name }}" \
+              --json number \
+              --jq '.[0].number // ""'
+          )"
+          if [ -n "${existing_pr}" ]; then
+            echo "Reusing rolling KB PR #${existing_pr}"
+          else
+            gh pr create \
+              --base "${{ steps.base-branch.outputs.name }}" \
+              --head "${KB_BOT_BRANCH}" \
+              --title "${KB_PR_TITLE}" \
+              --body "Automated update of the PR knowledge base."
+          fi
+
+      - name: Persist KB_LAST_SUCCESSFUL_CURSOR
+        if: ${{ steps.decision.outputs.should_run == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.KB_VARIABLES_TOKEN }}
+        run: |
+          set -euo pipefail
+          candidate_cursor="${{ steps.decision.outputs.next_cursor }}"
+          if [ -z "${candidate_cursor}" ]; then
+            echo "No cursor candidate emitted; skipping persistence."
+            exit 0
+          fi
+          endpoint="/repos/${GITHUB_REPOSITORY}/actions/variables/${KB_VARIABLE_NAME}"
+          stderr_file="$(mktemp)"
+          set +e
+          fresh_cursor="$(gh api "${endpoint}" --jq '.value' 2>"${stderr_file}")"
+          status=$?
+          set -e
+          if [ "${status}" -eq 0 ]; then
+            variable_exists="true"
+          elif grep -q "404" "${stderr_file}"; then
+            fresh_cursor=""
+            variable_exists="false"
+          else
+            cat "${stderr_file}" >&2
+            exit "${status}"
+          fi
+          rm -f "${stderr_file}"
+          persisted_cursor="$(
+            python - "${fresh_cursor}" "${candidate_cursor}" <<'PY'
+            from datetime import datetime, timezone
+            import sys
+
+            values = []
+            for raw in sys.argv[1:]:
+                if not raw:
+                    continue
+                dt = datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone(timezone.utc)
+                values.append(dt)
+            if values:
+                print(max(values).isoformat().replace("+00:00", "Z"))
+            PY
+          )"
+          if [ "${variable_exists}" = "true" ]; then
+            gh api --method PATCH "${endpoint}" -f name="${KB_VARIABLE_NAME}" -f value="${persisted_cursor}" >/dev/null
+          else
+            gh api --method POST "/repos/${GITHUB_REPOSITORY}/actions/variables" -f name="${KB_VARIABLE_NAME}" -f value="${persisted_cursor}" >/dev/null
+          fi
+
+      - name: Upload debug artifacts on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: github-pr-kb-debug
+          path: |
+            kb/
+            .github-pr-kb/cache/

@@ -154,9 +154,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — testable action-state helper for no-new-PR guard and cursor decisions
-- [ ] 08-02-PLAN.md — merged-PR workflow with dual-mode variable auth, cache reuse, and rolling KB PR publication
-- [ ] 08-03-PLAN.md — automation-first README rewrite with PAT quickstart, GitHub App option, and local CLI docs
+- [x] 08-01-PLAN.md — testable action-state helper for no-new-PR guard and cursor decisions
+- [x] 08-02-PLAN.md — merged-PR workflow with dual-mode variable auth, cache reuse, and rolling KB PR publication
+- [x] 08-03-PLAN.md — automation-first README rewrite with PAT quickstart, GitHub App option, and local CLI docs
 
 ## Progress
 
@@ -172,4 +172,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 5. KB Generator | 2/2 | Complete   | 2026-04-06 |
 | 6. CLI Integration | 1/1 | Complete   | 2026-04-06 |
 | 7. Fix Article Generation Quality | 3/3 | Ready for verification | - |
-| 8. GitHub Action + README | 0/3 | Not started | - |
+| 8. GitHub Action + README | 3/3 | Ready for verification | - |
