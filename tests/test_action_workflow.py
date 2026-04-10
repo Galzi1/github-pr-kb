@@ -36,7 +36,7 @@ def test_workflow_bootstraps_tool_checkout_for_copyable_repos() -> None:
 
     assert "KB_TOOL_REPOSITORY" in text
     assert "KB_TOOL_REF" in text
-    assert "galzi/github-pr-kb" in text
+    assert "Galzi1/github-pr-kb" in text
     assert "refs/heads/main" not in text
     assert "KB_TOOL_REF: main" not in text
     assert "KB_TOOL_REF: master" not in text

@@ -20,7 +20,7 @@ The workflow is intentionally copyable across repositories and uses two explicit
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
-| `KB_TOOL_REPOSITORY` | `galzi/github-pr-kb` | Which repository to checkout for the CLI and helper code |
+| `KB_TOOL_REPOSITORY` | `Galzi1/github-pr-kb` | Which repository to checkout for the CLI and helper code |
 | `KB_TOOL_REF` | immutable full commit SHA | Which exact tool version to run |
 
 `KB_TOOL_REF` should stay pinned to an immutable release tag or full commit SHA. Treat it like any other supply-chain pin: update it intentionally, review the diff, and commit the workflow change when you want to upgrade.

@@ -23,6 +23,7 @@ def test_readme_is_automation_first() -> None:
     assert "workflow_dispatch" in text
     assert "KB_TOOL_REPOSITORY" in text
     assert "KB_TOOL_REF" in text
+    assert "Galzi1/github-pr-kb" in text
     assert "copy only the workflow file" in text
     assert "do not need this tool's source tree checked into your repository" in text
     assert "### PAT quickstart" in text

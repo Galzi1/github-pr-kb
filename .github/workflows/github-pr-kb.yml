@@ -25,7 +25,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  KB_TOOL_REPOSITORY: galzi/github-pr-kb
+  KB_TOOL_REPOSITORY: Galzi1/github-pr-kb
   KB_TOOL_REF: 96706685d7f90c3451f8631c7c907d200a08dd99
   KB_TOOL_PATH: .github-pr-kb-tool
   KB_VARIABLE_NAME: KB_LAST_SUCCESSFUL_CURSOR
