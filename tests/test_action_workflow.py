@@ -88,8 +88,9 @@ def test_workflow_publishes_rolling_pr_and_persists_cursor_monotonically() -> No
     assert "actions/variables/${KB_VARIABLE_NAME}" in text
     assert "KB_LAST_SUCCESSFUL_CURSOR" in text
     assert "max(" in text
-    assert 'persisted_cursor="$(python -c "' in text
-    assert 'persisted_cursor="$(\n' not in text
+    assert 'persisted_cursor="$(python -' in text
+    assert "fromisoformat" in text
+    assert "::warning::Ignoring unparsable cursor value" in text
 
 
 def test_action_state_helper_command_runs_from_project_checkout() -> None:

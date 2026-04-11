@@ -300,7 +300,25 @@ jobs:
             exit "${status}"
           fi
           rm -f "${stderr_file}"
-          persisted_cursor="$(python -c "from datetime import datetime, timezone; import sys; values = [datetime.fromisoformat(raw.replace('Z', '+00:00')).astimezone(timezone.utc) for raw in sys.argv[1:] if raw]; print(max(values).isoformat().replace('+00:00', 'Z') if values else '')" "${fresh_cursor}" "${candidate_cursor}")"
+          persisted_cursor="$(python - "${fresh_cursor}" "${candidate_cursor}" <<'PY'
+          import sys
+          from datetime import datetime, timezone
+
+          valid = []
+          for raw in sys.argv[1:]:
+              if not raw:
+                  continue
+              try:
+                  dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                  valid.append(dt.astimezone(timezone.utc))
+              except (ValueError, TypeError):
+                  print(f"::warning::Ignoring unparsable cursor value: {raw}", file=sys.stderr)
+          if valid:
+              print(max(valid).isoformat().replace("+00:00", "Z"))
+          else:
+              print("")
+          PY
+          )"
           if [ "${variable_exists}" = "true" ]; then
             gh api --method PATCH "${endpoint}" -f name="${KB_VARIABLE_NAME}" -f value="${persisted_cursor}" >/dev/null
           else
