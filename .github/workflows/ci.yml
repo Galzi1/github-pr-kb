@@ -8,6 +8,7 @@ on:
   merge_group:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -62,7 +63,7 @@ jobs:
 
   e2e-pipeline:
     name: e2e-pipeline
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
