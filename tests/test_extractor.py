@@ -154,6 +154,69 @@ def test_review_bot_kept(tmp_path):
     assert pr_file.comments[0].author == "github-copilot[bot]"
 
 
+def test_qodo_issue_boilerplate_is_filtered(tmp_path):
+    """Known Qodo issue-comment templates are ignored as automation noise."""
+    cache_dir = tmp_path / "cache"
+    pr = make_mock_pr(number=13)
+    pr.get_issue_comments.return_value = [
+        make_mock_issue_comment(
+            comment_id=6001,
+            login="qodo-code-review[bot]",
+            body=(
+                "<h3>Code Review by Qodo</h3>\n\n"
+                "Looking for bugs?\n"
+                "Check back in a few minutes. An AI review agent is analyzing this pull request."
+            ),
+        ),
+        make_mock_issue_comment(
+            comment_id=6002,
+            login="qodo-code-review[bot]",
+            body=(
+                "<h3>Review Summary by Qodo</h3>\n\n"
+                "Automated summary for file changes and walkthroughs."
+            ),
+        ),
+    ]
+
+    with patch("github_pr_kb.extractor.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_repo.get_pulls.return_value = [pr]
+        MockGithub.return_value.get_repo.return_value = mock_repo
+
+        extractor = GitHubExtractor("owner/repo", cache_dir=cache_dir)
+        extractor.extract()
+
+    data = json.loads((cache_dir / "pr-13.json").read_text())
+    pr_file = PRFile.model_validate(data)
+    assert len(pr_file.comments) == 0
+
+
+def test_qodo_review_comment_is_kept(tmp_path):
+    """Substantive Qodo inline review comments remain eligible input."""
+    cache_dir = tmp_path / "cache"
+    pr = make_mock_pr(number=14)
+    pr.get_review_comments.return_value = [
+        make_mock_review_comment(
+            comment_id=7001,
+            login="qodo-code-review[bot]",
+            body="Consider validating discount_rate so values outside 0..1 do not create bad totals.",
+        ),
+    ]
+
+    with patch("github_pr_kb.extractor.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_repo.get_pulls.return_value = [pr]
+        MockGithub.return_value.get_repo.return_value = mock_repo
+
+        extractor = GitHubExtractor("owner/repo", cache_dir=cache_dir)
+        extractor.extract()
+
+    data = json.loads((cache_dir / "pr-14.json").read_text())
+    pr_file = PRFile.model_validate(data)
+    assert len(pr_file.comments) == 1
+    assert pr_file.comments[0].author == "qodo-code-review[bot]"
+
+
 def test_state_filter(tmp_path):
     """get_pulls called with state='closed' when state filter is 'closed'."""
     cache_dir = tmp_path / "cache"

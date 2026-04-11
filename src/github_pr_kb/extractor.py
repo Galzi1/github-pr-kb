@@ -38,6 +38,10 @@ _SUBSTANTIVE_RE = re.compile(r"[a-zA-Z]{5,}")
 DEFAULT_CACHE_DIR = Path(".github-pr-kb/cache")
 
 REACTION_KEYS = ["+1", "-1", "laugh", "hooray", "confused", "heart", "rocket", "eyes"]
+QODO_BOILERPLATE_ISSUE_MARKERS = frozenset({
+    "<h3>Code Review by Qodo</h3>",
+    "<h3>Review Summary by Qodo</h3>",
+})
 
 
 class RateLimitExhaustedError(Exception):
@@ -56,6 +60,13 @@ def is_noise(login: str, body: str) -> bool:
     if not _SUBSTANTIVE_RE.search(body):
         return True
     return False
+
+
+def is_boilerplate_issue_comment(login: str, body: str, comment_type: str) -> bool:
+    """Return True for known non-knowledge-bearing issue comment templates."""
+    if comment_type != "issue" or login != "qodo-code-review[bot]":
+        return False
+    return any(marker in body for marker in QODO_BOILERPLATE_ISSUE_MARKERS)
 
 
 def _extract_reactions(raw_reactions: Mapping[str, int]) -> dict[str, int]:
@@ -91,6 +102,8 @@ def _comment_to_record(
 ) -> Optional[CommentRecord]:
     """Build a CommentRecord from a PyGithub comment, or return None if noise."""
     login = c.user.login if c.user is not None else "[deleted]"
+    if is_boilerplate_issue_comment(login, c.body, comment_type):
+        return None
     if is_noise(login, c.body):
         return None
     return CommentRecord(
