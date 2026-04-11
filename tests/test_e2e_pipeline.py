@@ -126,7 +126,7 @@ def test_classification_produces_classified_files(pipeline_dirs: dict) -> None:
         data = json.loads(cf.read_text(encoding="utf-8"))
         classified = ClassifiedFile.model_validate(data)
         assert classified.pr.number > 0
-        for comment in classified.comments:
+        for comment in classified.classifications:
             assert comment.category in VALID_CATEGORIES
             assert 0.0 <= comment.confidence <= 1.0
             assert isinstance(comment.summary, str)
