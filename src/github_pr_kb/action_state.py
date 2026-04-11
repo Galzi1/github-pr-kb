@@ -55,7 +55,7 @@ def _isoformat_utc(value: datetime | None) -> str | None:
 
 
 def decide_action_run(
-    *,
+    *,  # keyword-only: all arguments below must be passed by name
     event_name: str,
     merged: bool = False,
     event_updated_at: TimestampInput = None,
