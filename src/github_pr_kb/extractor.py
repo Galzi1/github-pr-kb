@@ -58,6 +58,11 @@ def is_noise(login: str, body: str) -> bool:
     return False
 
 
+def is_ignored_issue_comment(login: str, comment_type: str) -> bool:
+    """Return True for automation-authored issue comments that should never be published."""
+    return comment_type == "issue" and login == "qodo-code-review[bot]"
+
+
 def _extract_reactions(raw_reactions: Mapping[str, int]) -> dict[str, int]:
     """Extract non-zero reaction counts from a reactions dict.
 
@@ -91,6 +96,8 @@ def _comment_to_record(
 ) -> Optional[CommentRecord]:
     """Build a CommentRecord from a PyGithub comment, or return None if noise."""
     login = c.user.login if c.user is not None else "[deleted]"
+    if is_ignored_issue_comment(login, comment_type):
+        return None
     if is_noise(login, c.body):
         return None
     return CommentRecord(
@@ -104,6 +111,13 @@ def _comment_to_record(
         diff_hunk=diff_hunk,
         reactions=_extract_reactions(c.reactions),
     )
+
+
+def _is_automation_kb_pr(pr: PullRequest) -> bool:
+    """Return True when the PR is the tool's rolling KB publication PR."""
+    head = getattr(pr, "head", None)
+    head_ref = getattr(head, "ref", None)
+    return head_ref == settings.kb_bot_branch
 
 
 class GitHubExtractor:
@@ -244,6 +258,10 @@ class GitHubExtractor:
             pulls = self.repo.get_pulls(state=state, sort="updated", direction="desc")
 
             for pr in pulls:
+                if _is_automation_kb_pr(pr):
+                    logger.info("PR #%d: skipped automation KB PR", pr.number)
+                    continue
+
                 # Early-stop: PRs are sorted desc by updated_at.
                 # Once we see a PR older than since, all remaining are older too.
                 if since is not None and pr.updated_at < since:

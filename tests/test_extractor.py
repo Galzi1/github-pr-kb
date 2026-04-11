@@ -13,7 +13,14 @@ from github_pr_kb.models import CommentRecord, PRFile, PRRecord
 # Mock helpers
 # ---------------------------------------------------------------------------
 
-def make_mock_pr(number=42, state="open", updated_at=None, title="Test PR", body="PR description"):
+def make_mock_pr(
+    number=42,
+    state="open",
+    updated_at=None,
+    title="Test PR",
+    body="PR description",
+    head_ref="feature/test-pr",
+):
     pr = MagicMock()
     pr.number = number
     pr.title = title
@@ -21,6 +28,8 @@ def make_mock_pr(number=42, state="open", updated_at=None, title="Test PR", body
     pr.state = state
     pr.html_url = f"https://github.com/owner/repo/pull/{number}"
     pr.updated_at = updated_at or datetime(2024, 1, 15, tzinfo=timezone.utc)
+    pr.head = MagicMock()
+    pr.head.ref = head_ref
     pr.get_review_comments.return_value = []
     pr.get_issue_comments.return_value = []
     return pr
@@ -152,6 +161,102 @@ def test_review_bot_kept(tmp_path):
     pr_file = PRFile.model_validate(data)
     assert len(pr_file.comments) == 1
     assert pr_file.comments[0].author == "github-copilot[bot]"
+
+
+def test_qodo_issue_comments_are_filtered(tmp_path):
+    """Qodo issue comments are ignored, even when they contain substantive text."""
+    cache_dir = tmp_path / "cache"
+    pr = make_mock_pr(number=13)
+    pr.get_issue_comments.return_value = [
+        make_mock_issue_comment(
+            comment_id=6001,
+            login="qodo-code-review[bot]",
+            body="Automated review summary placeholder from Qodo.",
+        ),
+        make_mock_issue_comment(
+            comment_id=6002,
+            login="qodo-code-review[bot]",
+            body="calculate_total_with_capped_percentage_discount() can produce negative subtotals when the cap exceeds subtotal.",
+        ),
+    ]
+
+    with patch("github_pr_kb.extractor.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_repo.get_pulls.return_value = [pr]
+        MockGithub.return_value.get_repo.return_value = mock_repo
+
+        extractor = GitHubExtractor("owner/repo", cache_dir=cache_dir)
+        extractor.extract()
+
+    data = json.loads((cache_dir / "pr-13.json").read_text())
+    pr_file = PRFile.model_validate(data)
+    assert len(pr_file.comments) == 0
+
+
+def test_qodo_review_comment_is_kept(tmp_path):
+    """Substantive Qodo inline review comments remain eligible input."""
+    cache_dir = tmp_path / "cache"
+    pr = make_mock_pr(number=14)
+    pr.get_review_comments.return_value = [
+        make_mock_review_comment(
+            comment_id=7001,
+            login="qodo-code-review[bot]",
+            body="Consider validating discount_rate so values outside 0..1 do not create bad totals.",
+        ),
+    ]
+
+    with patch("github_pr_kb.extractor.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_repo.get_pulls.return_value = [pr]
+        MockGithub.return_value.get_repo.return_value = mock_repo
+
+        extractor = GitHubExtractor("owner/repo", cache_dir=cache_dir)
+        extractor.extract()
+
+    data = json.loads((cache_dir / "pr-14.json").read_text())
+    pr_file = PRFile.model_validate(data)
+    assert len(pr_file.comments) == 1
+    assert pr_file.comments[0].author == "qodo-code-review[bot]"
+
+
+def test_automation_kb_pr_is_skipped(tmp_path):
+    """The rolling KB publication PR is excluded from extraction entirely."""
+    cache_dir = tmp_path / "cache"
+    automation_pr = make_mock_pr(
+        number=15,
+        title="chore: update PR knowledge base",
+        head_ref="automation/github-pr-kb",
+    )
+    automation_pr.get_issue_comments.return_value = [
+        make_mock_issue_comment(
+            comment_id=8001,
+            login="alice",
+            body="This explanatory close comment should not be republished.",
+        ),
+    ]
+    normal_pr = make_mock_pr(number=16, title="feat: keep me")
+    normal_pr.get_issue_comments.return_value = [
+        make_mock_issue_comment(
+            comment_id=8002,
+            login="bob",
+            body="This normal PR comment should still be extracted.",
+        ),
+    ]
+
+    with patch("github_pr_kb.extractor.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_repo.get_pulls.return_value = [automation_pr, normal_pr]
+        MockGithub.return_value.get_repo.return_value = mock_repo
+
+        extractor = GitHubExtractor("owner/repo", cache_dir=cache_dir)
+        paths = extractor.extract()
+
+    assert paths == [cache_dir / "pr-16.json"]
+    assert not (cache_dir / "pr-15.json").exists()
+    data = json.loads((cache_dir / "pr-16.json").read_text())
+    pr_file = PRFile.model_validate(data)
+    assert len(pr_file.comments) == 1
+    assert pr_file.comments[0].comment_id == 8002
 
 
 def test_state_filter(tmp_path):

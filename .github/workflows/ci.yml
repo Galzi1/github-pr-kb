@@ -8,6 +8,7 @@ on:
   merge_group:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -59,3 +60,26 @@ jobs:
 
       - name: Run phase 7 e2e harness
         run: .venv/bin/python -m pytest tests/test_phase7_uat_envs.py -v -m e2e
+
+  e2e-pipeline:
+    name: e2e-pipeline
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync --all-groups --frozen
+
+      - name: Run E2E pipeline against demo repo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RUN_INTEGRATION_TESTS: "1"
+        run: .venv/bin/python -m pytest tests/test_e2e_pipeline.py -v -m e2e

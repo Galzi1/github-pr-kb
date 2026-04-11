@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None  # Phase 4: required for classify command
     anthropic_model: str | None = None  # Override default classifier model via ANTHROPIC_MODEL
     kb_output_dir: str = "kb"  # Phase 5: KB output directory (D-17)
+    kb_bot_branch: str = "automation/github-pr-kb"
     anthropic_generate_model: str | None = None
     min_confidence: float = 0.5
 
