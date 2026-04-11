@@ -226,6 +226,51 @@ def test_parse_failure_returns_none(cache_dir_with_pr):
     assert body_hash(comment.body) not in classifier._index
 
 
+def test_markdown_fenced_json_is_parsed(cache_dir_with_pr):
+    from github_pr_kb.classifier import PRClassifier
+
+    response_text = """```json
+    {"category": "gotcha", "confidence": 0.88, "summary": "Validate discount rate bounds."}
+    ```"""
+    mock_message = make_mock_message(response_text)
+
+    with patch("github_pr_kb.classifier.Anthropic") as MockAnthropic:
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_message
+        MockAnthropic.return_value = mock_client
+
+        classifier = PRClassifier(cache_dir=cache_dir_with_pr, api_key="sk-ant-fake")
+        result = classifier.classify_pr(1)
+
+    assert len(result.classifications) == 1
+    assert result.classifications[0].category == "gotcha"
+    assert classifier._failed_count == 0
+
+
+def test_prose_wrapped_json_is_parsed(cache_dir_with_pr):
+    from github_pr_kb.classifier import PRClassifier
+
+    response_text = (
+        'Here is the classification result:\n'
+        '{"category": "domain_knowledge", "confidence": 0.91, '
+        '"summary": "Discount order is a business rule."}\n'
+        "Thanks."
+    )
+    mock_message = make_mock_message(response_text)
+
+    with patch("github_pr_kb.classifier.Anthropic") as MockAnthropic:
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_message
+        MockAnthropic.return_value = mock_client
+
+        classifier = PRClassifier(cache_dir=cache_dir_with_pr, api_key="sk-ant-fake")
+        result = classifier.classify_pr(1)
+
+    assert len(result.classifications) == 1
+    assert result.classifications[0].category == "domain_knowledge"
+    assert classifier._failed_count == 0
+
+
 def test_load_index_filters_failed(tmp_path):
     from github_pr_kb.classifier import PRClassifier
 
