@@ -94,7 +94,7 @@ def _parse_classification_response(text: str) -> dict | None:
             parsed = json.loads(candidate)
         except json.JSONDecodeError:
             continue
-        if isinstance(parsed, dict):
+        if _is_valid_classification_payload(parsed):
             return parsed
 
     for idx, char in enumerate(stripped):
@@ -104,10 +104,31 @@ def _parse_classification_response(text: str) -> dict | None:
             parsed, _ = decoder.raw_decode(stripped[idx:])
         except json.JSONDecodeError:
             continue
-        if isinstance(parsed, dict):
+        if _is_valid_classification_payload(parsed):
             return parsed
 
     return None
+
+
+def _is_valid_classification_payload(parsed: object) -> bool:
+    """Return True only for dicts that satisfy the classifier response contract."""
+    if not isinstance(parsed, dict):
+        return False
+
+    category = parsed.get("category")
+    summary = parsed.get("summary")
+    if not isinstance(category, str) or not isinstance(summary, str):
+        return False
+
+    if "confidence" not in parsed:
+        return False
+
+    try:
+        float(parsed["confidence"])
+    except (TypeError, ValueError):
+        return False
+
+    return True
 
 
 class PRClassifier:

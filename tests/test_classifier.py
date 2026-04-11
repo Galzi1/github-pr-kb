@@ -271,6 +271,51 @@ def test_prose_wrapped_json_is_parsed(cache_dir_with_pr):
     assert classifier._failed_count == 0
 
 
+def test_unrelated_json_dict_is_skipped_before_valid_classification(cache_dir_with_pr):
+    from github_pr_kb.classifier import PRClassifier
+
+    response_text = (
+        'Noise: {"status": "ok"}\n'
+        '{"category": "code_pattern", "confidence": 0.83, '
+        '"summary": "Reuse one validation flow for pricing helpers."}'
+    )
+    mock_message = make_mock_message(response_text)
+
+    with patch("github_pr_kb.classifier.Anthropic") as MockAnthropic:
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_message
+        MockAnthropic.return_value = mock_client
+
+        classifier = PRClassifier(cache_dir=cache_dir_with_pr, api_key="sk-ant-fake")
+        result = classifier.classify_pr(1)
+
+    assert len(result.classifications) == 1
+    assert result.classifications[0].category == "code_pattern"
+    assert classifier._failed_count == 0
+
+
+def test_schema_less_json_object_is_rejected(cache_dir_with_pr):
+    from github_pr_kb.classifier import PRClassifier, body_hash
+
+    mock_message = make_mock_message("{}")
+
+    with patch("github_pr_kb.classifier.Anthropic") as MockAnthropic:
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_message
+        MockAnthropic.return_value = mock_client
+
+        classifier = PRClassifier(cache_dir=cache_dir_with_pr, api_key="sk-ant-fake")
+        comment = PRFile.model_validate_json(
+            (cache_dir_with_pr / "pr-1.json").read_text(encoding="utf-8")
+        ).comments[0]
+
+        result = classifier._classify_comment(comment)
+
+    assert result is None
+    assert classifier._failed_count == 1
+    assert body_hash(comment.body) not in classifier._index
+
+
 def test_load_index_filters_failed(tmp_path):
     from github_pr_kb.classifier import PRClassifier
 
