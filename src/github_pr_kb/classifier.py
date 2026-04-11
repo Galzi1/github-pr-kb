@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,6 +35,8 @@ VALID_CATEGORIES: set[str] = {
     "domain_knowledge",
     "other",
 }
+
+_JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.IGNORECASE | re.DOTALL)
 
 SYSTEM_PROMPT = """You are a technical knowledge classifier for GitHub PR comments.
 
@@ -70,6 +73,62 @@ def _write_atomic(path: Path, data: str) -> None:
             with contextlib.suppress(OSError):
                 os.unlink(tmp_name)
         raise
+
+
+def _parse_classification_response(text: str) -> dict | None:
+    """Extract a JSON object from bare, fenced, or prose-wrapped model output."""
+    stripped = text.strip()
+    if not stripped:
+        return None
+
+    decoder = json.JSONDecoder()
+    candidates: list[str] = [stripped]
+    candidates.extend(match.group(1).strip() for match in _JSON_FENCE_RE.finditer(stripped))
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if _is_valid_classification_payload(parsed):
+            return parsed
+
+    for idx, char in enumerate(stripped):
+        if char != "{":
+            continue
+        try:
+            parsed, _ = decoder.raw_decode(stripped[idx:])
+        except json.JSONDecodeError:
+            continue
+        if _is_valid_classification_payload(parsed):
+            return parsed
+
+    return None
+
+
+def _is_valid_classification_payload(parsed: object) -> bool:
+    """Return True only for dicts that satisfy the classifier response contract."""
+    if not isinstance(parsed, dict):
+        return False
+
+    category = parsed.get("category")
+    summary = parsed.get("summary")
+    if not isinstance(category, str) or not isinstance(summary, str):
+        return False
+
+    if "confidence" not in parsed:
+        return False
+
+    try:
+        float(parsed["confidence"])
+    except (TypeError, ValueError):
+        return False
+
+    return True
 
 
 class PRClassifier:
@@ -210,9 +269,8 @@ class PRClassifier:
             return None
 
         text = response.content[0].text
-        try:
-            result: dict = json.loads(text)
-        except json.JSONDecodeError:
+        result = _parse_classification_response(text)
+        if result is None:
             logger.warning(
                 "Could not parse classification JSON for comment %d", comment.comment_id
             )
