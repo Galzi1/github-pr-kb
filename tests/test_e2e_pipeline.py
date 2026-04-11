@@ -125,7 +125,7 @@ def test_classification_produces_classified_files(pipeline_dirs: dict) -> None:
     for cf in classified_files:
         data = json.loads(cf.read_text(encoding="utf-8"))
         classified = ClassifiedFile.model_validate(data)
-        assert classified.pr_number > 0
+        assert classified.pr.number > 0
         for comment in classified.comments:
             assert comment.category in VALID_CATEGORIES
             assert 0.0 <= comment.confidence <= 1.0
@@ -171,7 +171,7 @@ def test_generation_articles_have_valid_frontmatter(pipeline_dirs: dict) -> None
         assert match, f"{article_path} missing YAML frontmatter"
         fm = match.group(1)
         assert "category:" in fm, f"{article_path} frontmatter missing category"
-        assert "source_pr:" in fm, f"{article_path} frontmatter missing source_pr"
+        assert "pr_url:" in fm, f"{article_path} frontmatter missing pr_url"
 
 
 def test_generation_creates_index(pipeline_dirs: dict) -> None:
