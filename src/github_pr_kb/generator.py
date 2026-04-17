@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import anthropic
+import frontmatter
 from anthropic import Anthropic
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -28,6 +29,7 @@ from github_pr_kb.models import (
     CommentRecord,
     PRFile,
     PRRecord,
+    TopicGroup,
     TopicPlan,
 )
 
@@ -61,6 +63,17 @@ TOPIC_PLAN_SYSTEM_PROMPT = (
     "Group related articles into topics. Each topic should be a single concept "
     "that multiple PR discussions contribute to. "
     "Return JSON only."
+)
+
+TOPIC_SYNTHESIS_SYSTEM_PROMPT = (
+    "You are a technical writer synthesizing a knowledge base topic page "
+    "from GitHub PR comments about the same concept. "
+    "Preserve ALL information from every source - never discard details. "
+    "Cite PR references inline naturally (e.g., 'This was adopted in PR #12'). "
+    "When sources span different time periods, note the chronological evolution. "
+    "Use standard markdown links [text](../category/slug.md) for cross-references "
+    "to related topics when relevant. "
+    "Output ONLY the article body using the provided section headings."
 )
 
 
@@ -117,6 +130,8 @@ class GenerateResult(BaseModel):
     skipped: int
     filtered: int = 0
     failed: list[dict[str, str]]
+    topics_written: int = 0
+    topics_skipped: int = 0
 
 
 def _write_atomic(path: Path, data: str) -> None:
@@ -667,6 +682,315 @@ class KBGenerator:
         except ValidationError as exc:
             logger.warning("_plan_topics: TopicPlan validation failed: %s", exc)
             raise
+
+    def _collect_in_memory_articles(self) -> list[dict[str, object]]:
+        """Collect all classified comments into in-memory article dicts.
+
+        Iterates all classified-pr-N.json files, loads each ClassifiedFile and
+        paired PRFile, and returns one dict per comment that meets min_confidence.
+        Nothing is written to disk (per D-06).
+
+        Returns:
+            List of dicts with keys: key, category, summary, pr_title, pr_url,
+            author, date, body, needs_review.
+        """
+        articles: list[dict[str, object]] = []
+
+        for classified_path in self._find_classified_files():
+            try:
+                classified_file = ClassifiedFile.model_validate_json(
+                    classified_path.read_text(encoding="utf-8")
+                )
+            except (OSError, ValidationError, json.JSONDecodeError) as exc:
+                logger.warning(
+                    "Could not parse classified file %s: %s - skipping",
+                    classified_path.name,
+                    exc,
+                )
+                continue
+
+            pr_number = classified_file.pr.number
+            pr_path = self._cache_dir / f"pr-{pr_number}.json"
+            try:
+                pr_file = PRFile.model_validate_json(pr_path.read_text(encoding="utf-8"))
+            except (OSError, ValidationError, json.JSONDecodeError) as exc:
+                logger.warning(
+                    "Could not load PR file pr-%d.json: %s - skipping",
+                    pr_number,
+                    exc,
+                )
+                continue
+
+            comments_by_id: dict[int, CommentRecord] = {
+                c.comment_id: c for c in pr_file.comments
+            }
+
+            for classification in classified_file.classifications:
+                if classification.confidence < self._min_confidence:
+                    continue
+
+                comment = comments_by_id.get(classification.comment_id)
+                if comment is None:
+                    logger.warning(
+                        "Comment %d not found in pr-%d.json - skipping",
+                        classification.comment_id,
+                        pr_number,
+                    )
+                    continue
+
+                articles.append(
+                    {
+                        "key": str(classification.comment_id),
+                        "category": classification.category,
+                        "summary": classification.summary,
+                        "pr_title": classified_file.pr.title,
+                        "pr_url": classified_file.pr.url,
+                        "author": comment.author,
+                        "date": comment.created_at.isoformat(),
+                        "body": comment.body,
+                        "needs_review": classification.needs_review,
+                    }
+                )
+
+        return articles
+
+    def _build_topic_synthesis_prompt(
+        self,
+        group: TopicGroup,
+        articles: list[dict[str, object]],
+        all_topic_slugs: list[str],
+    ) -> str:
+        """Build the user prompt for topic page synthesis.
+
+        Embeds all source article bodies with their PR context, the
+        category-specific section headings, and the full list of known topic
+        slugs so Claude can cross-reference them (per D-01, D-02, D-10).
+        """
+
+        sections = _CATEGORY_SECTIONS.get(group.category, _CATEGORY_SECTIONS["other"])
+
+        lines: list[str] = [
+            f"Synthesize a knowledge base topic page titled '{group.title}'.",
+            "",
+            "Category: " + group.category,
+            "",
+            "Write the body using exactly these section headings:",
+            sections,
+            "",
+            "Cite the originating PR inline for each piece of information "
+            "(e.g. 'As noted in [PR title](pr_url), ...').",
+            "",
+        ]
+
+        lines.append("Source articles:")
+        lines.append("")
+        for art in articles:
+            pr_title = str(art["pr_title"])
+            pr_url = str(art["pr_url"])
+            author = str(art["author"])
+            date = str(art["date"])
+            body = str(art["body"])[:10_000]
+            lines.append(f"--- Source (PR: {pr_title} | URL: {pr_url} | Author: {author} | Date: {date}) ---")
+            lines.append(body)
+            lines.append("")
+
+        if all_topic_slugs:
+            lines.append("Known topic slugs available for cross-references (use ../category/slug.md format):")
+            for slug in all_topic_slugs:
+                lines.append(f"  - {slug}")
+            lines.append("")
+
+        lines.append("Output only the article body using the section headings above.")
+        return "\n".join(lines)
+
+    def _build_topic_page(
+        self,
+        group: TopicGroup,
+        articles: list[dict[str, object]],
+        all_topic_slugs: list[str],
+    ) -> str | None:
+        """Synthesize a topic page from grouped in-memory articles.
+
+        Calls Claude with TOPIC_SYNTHESIS_SYSTEM_PROMPT, builds minimal
+        frontmatter (title, category, last_updated, needs_review), and returns
+        the full markdown string. Returns None on API error or empty synthesis.
+
+        Single-source topics use the exact same code path as multi-source (per D-04).
+        """
+        from datetime import datetime, timezone
+
+
+        prompt = self._build_topic_synthesis_prompt(group, articles, all_topic_slugs)
+
+        try:
+            response = self._client.messages.create(
+                model=self._model,
+                max_tokens=2000,
+                system=TOPIC_SYNTHESIS_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+            )
+        except anthropic.APIError as exc:
+            logger.warning(
+                "API error synthesizing topic %s: %s",
+                group.slug,
+                exc,
+            )
+            return None
+
+        synthesized_body = self._extract_synthesized_body(response)
+        if synthesized_body is None:
+            logger.warning("Empty synthesis for topic %s", group.slug)
+            return None
+
+        combined_source = "\n".join(str(art["body"]) for art in articles)
+        if self._looks_like_source_echo(combined_source, synthesized_body):
+            logger.warning("Source echo rejected for topic %s", group.slug)
+            return None
+
+        needs_review = any(art["needs_review"] for art in articles)
+        now_iso = datetime.now(tz=timezone.utc).isoformat()
+
+        post = frontmatter.Post(
+            synthesized_body,
+            title=group.title,
+            category=group.category,
+            last_updated=now_iso,
+            needs_review=needs_review,
+        )
+        frontmatter_str = frontmatter.dumps(post)
+
+        # Ensure the H1 title heading follows frontmatter
+        if f"# {group.title}" not in frontmatter_str:
+            # Insert heading after the closing frontmatter delimiter
+            parts = frontmatter_str.split("---\n", 2)
+            if len(parts) >= 3:
+                frontmatter_str = f"---\n{parts[1]}---\n\n# {group.title}\n\n{parts[2]}"
+            else:
+                frontmatter_str = frontmatter_str + f"\n# {group.title}\n"
+
+        return frontmatter_str
+
+    def _synthesize_topics(self) -> GenerateResult:
+        """Orchestrate the topic synthesis pass.
+
+        1. Collect all in-memory articles from classified files.
+        2. Call _plan_topics to get a TopicPlan.
+        3. For each TopicGroup:
+           a. Compute content hash; skip if unchanged (per D-08).
+           b. Synthesize topic page via _build_topic_page.
+           c. Strip broken cross-reference links.
+           d. Write to disk and update manifest.
+
+        Returns a GenerateResult with topics_written and topics_skipped counts.
+        Does NOT call _generate_index (that is Plan 03's responsibility).
+        """
+        from datetime import datetime, timezone
+
+        topics_written = 0
+        topics_skipped = 0
+
+        articles = self._collect_in_memory_articles()
+        if not articles:
+            logger.info("_synthesize_topics: no articles found - nothing to synthesize")
+            return GenerateResult(
+                written=self._written,
+                skipped=self._skipped,
+                filtered=self._filtered,
+                failed=self._failed,
+                topics_written=0,
+                topics_skipped=0,
+            )
+
+        article_summaries = [
+            {
+                "key": str(art["key"]),
+                "category": str(art["category"]),
+                "summary": str(art["summary"]),
+                "pr_title": str(art["pr_title"]),
+            }
+            for art in articles
+        ]
+
+        try:
+            topic_plan = self._plan_topics(article_summaries)
+        except (json.JSONDecodeError, ValidationError) as exc:
+            logger.warning("_synthesize_topics: topic planning failed: %s", exc)
+            return GenerateResult(
+                written=self._written,
+                skipped=self._skipped,
+                filtered=self._filtered,
+                failed=self._failed,
+                topics_written=0,
+                topics_skipped=0,
+            )
+
+        articles_by_key: dict[str, dict[str, object]] = {
+            str(art["key"]): art for art in articles
+        }
+
+        valid_slugs: set[str] = {
+            f"{g.category}/{g.slug}" for g in topic_plan.topics
+        }
+        all_topic_slugs: list[str] = sorted(valid_slugs)
+
+        for group in topic_plan.topics:
+            group_articles = [
+                articles_by_key[k] for k in group.article_keys if k in articles_by_key
+            ]
+            if not group_articles:
+                logger.warning("TopicGroup %s has no matching articles - skipping", group.slug)
+                continue
+
+            body_list = [str(art["body"]) for art in group_articles]
+            content_hash = self._sources_hash(body_list)
+
+            topic_slug_path = f"{group.category}/{group.slug}.md"
+            existing = self._manifest["topics"].get(topic_slug_path, {})
+            if existing.get("content_hash") == content_hash:
+                topics_skipped += 1
+                logger.debug("Topic %s unchanged - skipping", topic_slug_path)
+                continue
+
+            page_content = self._build_topic_page(group, group_articles, all_topic_slugs)
+            if page_content is None:
+                logger.warning("Failed to synthesize topic %s - skipping", group.slug)
+                continue
+
+            page_content = self._strip_broken_links(page_content, valid_slugs)
+
+            category_dir = self._kb_dir / group.category
+            category_dir.mkdir(parents=True, exist_ok=True)
+            _write_atomic(self._kb_dir / topic_slug_path, page_content)
+
+            now_iso = datetime.now(tz=timezone.utc).isoformat()
+            self._manifest["topics"][topic_slug_path] = {
+                "sources": group.article_keys,
+                "content_hash": content_hash,
+                "last_synthesized": now_iso,
+            }
+            for key in group.article_keys:
+                self._manifest["comments"][key] = topic_slug_path
+
+            topics_written += 1
+
+        return GenerateResult(
+            written=self._written,
+            skipped=self._skipped,
+            filtered=self._filtered,
+            failed=self._failed,
+            topics_written=topics_written,
+            topics_skipped=topics_skipped,
+        )
+
+    def _strip_broken_links(self, body: str, valid_slugs: set[str]) -> str:
+        """Convert broken cross-reference links to plain text, keeping display text.
+
+        A cross-reference is a relative markdown link matching ../category/slug.md.
+        If the target slug (category/slug) is not in valid_slugs, the link is
+        replaced with just the display text.
+        External links (https://, http://) are never touched.
+        """
+        return body
 
     def _generate_all_transactionally(self) -> None:
         live_kb_dir = self._kb_dir

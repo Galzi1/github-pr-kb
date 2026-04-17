@@ -970,3 +970,444 @@ def test_plan_topics_single_source(tmp_path: Path, fake_anthropic_client: MagicM
 
 
 # ---- End Phase 09 Plan 01: Manifest migration + topic planning tests ----
+
+
+# ---- Phase 09 Plan 02: Topic synthesis tests ----
+
+
+def _make_topic_plan_response(topics: list[dict]) -> "SimpleNamespace":
+    """Return a mock Anthropic response for _plan_topics that yields a valid TopicPlan."""
+    import json as _json
+
+    return SimpleNamespace(
+        content=[SimpleNamespace(type="text", text=_json.dumps({"topics": topics}))]
+    )
+
+
+def _make_synthesis_response(body: str) -> "SimpleNamespace":
+    """Return a mock Anthropic response for _build_topic_page synthesis."""
+    return SimpleNamespace(content=[SimpleNamespace(type="text", text=body)])
+
+
+def test_collect_in_memory_articles_returns_article_dicts(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """_collect_in_memory_articles returns list of dicts with required keys."""
+    _write_classified_pair(
+        tmp_path,
+        pr_number=1,
+        comment_id=101,
+        category="gotcha",
+        summary="Avoid circular imports",
+        confidence=0.85,
+    )
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client, min_confidence=0.7)
+    articles = gen._collect_in_memory_articles()
+    assert len(articles) == 1
+    art = articles[0]
+    for key in ("key", "category", "summary", "pr_title", "pr_url", "author", "date", "body", "needs_review"):
+        assert key in art, f"Missing key: {key}"
+    assert art["key"] == "101"
+    assert art["category"] == "gotcha"
+    assert art["summary"] == "Avoid circular imports"
+
+
+def test_collect_in_memory_articles_filters_by_confidence(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """_collect_in_memory_articles filters articles below min_confidence threshold."""
+    _write_classified_pair(tmp_path, pr_number=1, comment_id=101, confidence=0.9)
+    _write_classified_pair(tmp_path, pr_number=2, comment_id=202, confidence=0.3)
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client, min_confidence=0.7)
+    articles = gen._collect_in_memory_articles()
+    assert len(articles) == 1
+    assert articles[0]["key"] == "101"
+
+
+def test_collect_in_memory_articles_no_disk_writes(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """_collect_in_memory_articles does NOT write any .md files to disk (per D-06)."""
+    _write_classified_pair(tmp_path, pr_number=1, comment_id=101)
+    kb_dir = tmp_path / "kb"
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    gen._collect_in_memory_articles()
+    # No .md files should exist anywhere in kb_dir
+    assert not list(kb_dir.rglob("*.md")) if kb_dir.exists() else True
+
+
+def test_build_topic_page_calls_claude_with_synthesis_prompt(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """_build_topic_page calls Claude API with TOPIC_SYNTHESIS_SYSTEM_PROMPT and source bodies."""
+    from github_pr_kb.models import TopicGroup
+
+    body_text = "## Symptom\n\nDead loop\n\n## Root Cause\n\nMissing guard\n\n## Fix or Workaround\n\nAdd check"
+    fake_anthropic_client.messages.create.return_value = _make_synthesis_response(body_text)
+
+    group = TopicGroup(
+        slug="avoid-circular-imports",
+        title="Avoid Circular Imports",
+        category="gotcha",
+        article_keys=["101"],
+    )
+    articles = [
+        {
+            "key": "101",
+            "category": "gotcha",
+            "summary": "Avoid circular imports",
+            "pr_title": "Fix middleware",
+            "pr_url": "https://github.com/r/p/1",
+            "author": "alice",
+            "date": "2026-01-01",
+            "body": "The original comment body",
+            "needs_review": False,
+        }
+    ]
+    all_slugs = ["avoid-circular-imports"]
+
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client)
+    gen._build_topic_page(group, articles, all_slugs)
+
+    assert fake_anthropic_client.messages.create.called
+    call_kwargs = fake_anthropic_client.messages.create.call_args.kwargs
+    from github_pr_kb.generator import TOPIC_SYNTHESIS_SYSTEM_PROMPT
+    assert call_kwargs["system"] == TOPIC_SYNTHESIS_SYSTEM_PROMPT
+    # Prompt should contain source article body and category sections
+    user_prompt = call_kwargs["messages"][0]["content"]
+    assert "The original comment body" in user_prompt
+    assert "## Symptom" in user_prompt
+
+
+def test_build_topic_page_returns_markdown_with_minimal_frontmatter(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """_build_topic_page returns markdown with only title, category, last_updated, needs_review in frontmatter (per D-03)."""
+    from github_pr_kb.models import TopicGroup
+
+    body_text = "## Symptom\n\nSome symptom\n\n## Root Cause\n\nSome cause\n\n## Fix or Workaround\n\nSome fix"
+    fake_anthropic_client.messages.create.return_value = _make_synthesis_response(body_text)
+
+    group = TopicGroup(
+        slug="my-gotcha",
+        title="My Gotcha Topic",
+        category="gotcha",
+        article_keys=["101"],
+    )
+    articles = [
+        {
+            "key": "101",
+            "category": "gotcha",
+            "summary": "My gotcha",
+            "pr_title": "Fix PR",
+            "pr_url": "https://github.com/r/p/1",
+            "author": "alice",
+            "date": "2026-01-01",
+            "body": "comment body",
+            "needs_review": False,
+        }
+    ]
+
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client)
+    result = gen._build_topic_page(group, articles, ["my-gotcha"])
+
+    assert result is not None
+    # Required fields present
+    assert "title:" in result
+    assert "category:" in result
+    assert "last_updated:" in result
+    assert "needs_review:" in result
+    # Forbidden fields absent from frontmatter
+    assert "pr_url:" not in result
+    assert "comment_id:" not in result
+    assert "confidence:" not in result
+    assert "author:" not in result
+    # Title heading present
+    assert "# My Gotcha Topic" in result
+
+
+def test_build_topic_page_needs_review_true_when_any_source_needs_review(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """_build_topic_page sets needs_review=true if any source has needs_review=True (per D-03)."""
+    from github_pr_kb.models import TopicGroup
+
+    body_text = "## Symptom\n\nX\n\n## Root Cause\n\nY\n\n## Fix or Workaround\n\nZ"
+    fake_anthropic_client.messages.create.return_value = _make_synthesis_response(body_text)
+
+    group = TopicGroup(
+        slug="my-topic",
+        title="My Topic",
+        category="gotcha",
+        article_keys=["101", "202"],
+    )
+    articles = [
+        {
+            "key": "101",
+            "category": "gotcha",
+            "summary": "First",
+            "pr_title": "PR1",
+            "pr_url": "u1",
+            "author": "alice",
+            "date": "2026-01-01",
+            "body": "body1",
+            "needs_review": False,
+        },
+        {
+            "key": "202",
+            "category": "gotcha",
+            "summary": "Second",
+            "pr_title": "PR2",
+            "pr_url": "u2",
+            "author": "bob",
+            "date": "2026-01-02",
+            "body": "body2",
+            "needs_review": True,
+        },
+    ]
+
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client)
+    result = gen._build_topic_page(group, articles, ["my-topic"])
+    assert result is not None
+    assert "needs_review: true" in result
+
+
+def test_build_topic_page_includes_pr_citations_in_prompt(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """_build_topic_page prompt includes PR title, url and author for inline citation (per D-01)."""
+    from github_pr_kb.models import TopicGroup
+
+    body_text = "## Pattern\n\nUse DI\n\n## When to Use\n\nAlways\n\n## Example\n\nSee PR #7"
+    fake_anthropic_client.messages.create.return_value = _make_synthesis_response(body_text)
+
+    group = TopicGroup(
+        slug="di-pattern",
+        title="DI Pattern",
+        category="code_pattern",
+        article_keys=["101"],
+    )
+    articles = [
+        {
+            "key": "101",
+            "category": "code_pattern",
+            "summary": "DI pattern",
+            "pr_title": "Refactor services to use DI",
+            "pr_url": "https://github.com/r/p/7",
+            "author": "carol",
+            "date": "2026-01-01",
+            "body": "Always inject dependencies",
+            "needs_review": False,
+        }
+    ]
+
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client)
+    gen._build_topic_page(group, articles, ["di-pattern"])
+
+    call_kwargs = fake_anthropic_client.messages.create.call_args.kwargs
+    user_prompt = call_kwargs["messages"][0]["content"]
+    assert "Refactor services to use DI" in user_prompt
+    assert "https://github.com/r/p/7" in user_prompt
+
+
+def test_build_topic_page_single_source_same_path(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """Single-source topic uses same _build_topic_page path as multi-source (per D-04)."""
+    from github_pr_kb.models import TopicGroup
+
+    body_text = "## Symptom\n\nX\n\n## Root Cause\n\nY\n\n## Fix or Workaround\n\nZ"
+    fake_anthropic_client.messages.create.return_value = _make_synthesis_response(body_text)
+
+    group = TopicGroup(
+        slug="solo-topic",
+        title="Solo Topic",
+        category="gotcha",
+        article_keys=["101"],
+    )
+    articles = [
+        {
+            "key": "101",
+            "category": "gotcha",
+            "summary": "Solo",
+            "pr_title": "PR1",
+            "pr_url": "u1",
+            "author": "alice",
+            "date": "2026-01-01",
+            "body": "solo body",
+            "needs_review": False,
+        }
+    ]
+
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client)
+    result = gen._build_topic_page(group, articles, ["solo-topic"])
+    assert result is not None
+    assert fake_anthropic_client.messages.create.called
+
+
+def test_synthesize_topics_writes_topic_pages(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """_synthesize_topics writes one topic page per TopicGroup to category/slug.md."""
+    _write_classified_pair(tmp_path, pr_number=1, comment_id=101, category="gotcha", summary="Avoid circular imports")
+
+    topic_plan_response = _make_topic_plan_response([
+        {"slug": "avoid-circular-imports", "title": "Avoid Circular Imports", "category": "gotcha", "article_keys": ["101"]}
+    ])
+    synthesis_body = "## Symptom\n\nX\n\n## Root Cause\n\nY\n\n## Fix or Workaround\n\nZ"
+
+    # First call: _plan_topics; subsequent calls: synthesis
+    fake_anthropic_client.messages.create.side_effect = [
+        topic_plan_response,
+        _make_synthesis_response(synthesis_body),
+    ]
+
+    kb_dir = tmp_path / "kb"
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    result = gen._synthesize_topics()
+
+    assert (kb_dir / "gotcha" / "avoid-circular-imports.md").exists()
+    assert result.topics_written == 1
+    assert result.topics_skipped == 0
+
+
+def test_synthesize_topics_updates_manifest_topics(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """_synthesize_topics updates manifest['topics'] with sources, content_hash, last_synthesized."""
+    _write_classified_pair(tmp_path, pr_number=1, comment_id=101, category="gotcha", summary="Avoid circular imports")
+
+    topic_plan_response = _make_topic_plan_response([
+        {"slug": "avoid-circular-imports", "title": "Avoid Circular Imports", "category": "gotcha", "article_keys": ["101"]}
+    ])
+    synthesis_body = "## Symptom\n\nX\n\n## Root Cause\n\nY\n\n## Fix or Workaround\n\nZ"
+    fake_anthropic_client.messages.create.side_effect = [
+        topic_plan_response,
+        _make_synthesis_response(synthesis_body),
+    ]
+
+    kb_dir = tmp_path / "kb"
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    gen._synthesize_topics()
+
+    topic_key = "gotcha/avoid-circular-imports.md"
+    assert topic_key in gen._manifest["topics"]
+    entry = gen._manifest["topics"][topic_key]
+    assert "sources" in entry
+    assert "content_hash" in entry
+    assert "last_synthesized" in entry
+
+
+def test_synthesize_topics_updates_manifest_comments(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """_synthesize_topics maps each article key in manifest['comments'] to topic slug path."""
+    _write_classified_pair(tmp_path, pr_number=1, comment_id=101, category="gotcha", summary="Avoid circular imports")
+
+    topic_plan_response = _make_topic_plan_response([
+        {"slug": "avoid-circular-imports", "title": "Avoid Circular Imports", "category": "gotcha", "article_keys": ["101"]}
+    ])
+    synthesis_body = "## Symptom\n\nX\n\n## Root Cause\n\nY\n\n## Fix or Workaround\n\nZ"
+    fake_anthropic_client.messages.create.side_effect = [
+        topic_plan_response,
+        _make_synthesis_response(synthesis_body),
+    ]
+
+    kb_dir = tmp_path / "kb"
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    gen._synthesize_topics()
+
+    assert gen._manifest["comments"]["101"] == "gotcha/avoid-circular-imports.md"
+
+
+def test_synthesize_topics_skips_on_content_hash_match(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """_synthesize_topics skips a topic when the content hash matches the manifest."""
+    _write_classified_pair(
+        tmp_path,
+        pr_number=1,
+        comment_id=101,
+        category="gotcha",
+        summary="Avoid circular imports",
+        comment_body="The body",
+    )
+
+    # Pre-populate the manifest with the hash that would result from this body
+    from github_pr_kb.generator import KBGenerator
+    article_body = "The body"
+    expected_hash = KBGenerator._sources_hash([article_body])
+
+    topic_plan_response = _make_topic_plan_response([
+        {"slug": "avoid-circular-imports", "title": "Avoid Circular Imports", "category": "gotcha", "article_keys": ["101"]}
+    ])
+    fake_anthropic_client.messages.create.return_value = topic_plan_response
+
+    kb_dir = tmp_path / "kb"
+    kb_dir.mkdir()
+    # Pre-seed manifest with the matching hash
+    manifest = {
+        "comments": {},
+        "topics": {
+            "gotcha/avoid-circular-imports.md": {
+                "sources": ["101"],
+                "content_hash": expected_hash,
+                "last_synthesized": "2026-01-01T00:00:00Z",
+            }
+        }
+    }
+    (kb_dir / ".manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    result = gen._synthesize_topics()
+
+    assert result.topics_skipped == 1
+    assert result.topics_written == 0
+    # Only _plan_topics should have been called (1 call), not synthesis
+    assert fake_anthropic_client.messages.create.call_count == 1
+
+
+def test_synthesize_topics_no_per_comment_files_on_disk(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """Per-comment articles are NOT written to disk - only topic pages exist (per D-06)."""
+    _write_classified_pair(tmp_path, pr_number=1, comment_id=101, category="gotcha", summary="Avoid circular imports")
+
+    topic_plan_response = _make_topic_plan_response([
+        {"slug": "avoid-circular-imports", "title": "Avoid Circular Imports", "category": "gotcha", "article_keys": ["101"]}
+    ])
+    synthesis_body = "## Symptom\n\nX\n\n## Root Cause\n\nY\n\n## Fix or Workaround\n\nZ"
+    fake_anthropic_client.messages.create.side_effect = [
+        topic_plan_response,
+        _make_synthesis_response(synthesis_body),
+    ]
+
+    kb_dir = tmp_path / "kb"
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    gen._synthesize_topics()
+
+    all_md = list(kb_dir.rglob("*.md"))
+    # Should only have the topic page, not per-comment articles
+    assert len(all_md) == 1
+    assert all_md[0].name == "avoid-circular-imports.md"
+
+
+def test_generate_result_has_topics_fields() -> None:
+    """GenerateResult includes topics_written and topics_skipped fields."""
+    from github_pr_kb.generator import GenerateResult
+
+    result = GenerateResult(written=0, skipped=0, failed=[], topics_written=2, topics_skipped=1)
+    assert result.topics_written == 2
+    assert result.topics_skipped == 1
+
+
+def test_generate_result_topics_fields_default_zero() -> None:
+    """GenerateResult topics_written and topics_skipped default to 0."""
+    from github_pr_kb.generator import GenerateResult
+
+    result = GenerateResult(written=0, skipped=0, failed=[])
+    assert result.topics_written == 0
+    assert result.topics_skipped == 0
+
+
+# ---- End Phase 09 Plan 02 Task 1: Topic synthesis tests ----
