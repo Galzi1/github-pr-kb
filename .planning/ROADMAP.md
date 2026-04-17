@@ -38,7 +38,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 1 plan
 
 Plans:
-- [x] 01-01-PLAN.md — pyproject.toml scaffold, package skeleton, stubs, .env.example, config.py with pydantic-settings validation, smoke test
+- [x] 01-01-PLAN.md - pyproject.toml scaffold, package skeleton, stubs, .env.example, config.py with pydantic-settings validation, smoke test
 
 ### Phase 2: GitHub Extraction Core
 **Goal**: A user can authenticate to GitHub and fetch PR comments from a repository, filtered by state and date range, with results written to local storage.
@@ -54,15 +54,15 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [x] 02-01-PLAN.md — Pydantic data models (PRRecord, CommentRecord, PRFile) with JSON round-trip tests
-- [x] 02-02-PLAN.md — GitHubExtractor with auth, state/date filtering, bot noise detection, and per-PR cache write
+- [x] 02-01-PLAN.md - Pydantic data models (PRRecord, CommentRecord, PRFile) with JSON round-trip tests
+- [x] 02-02-PLAN.md - GitHubExtractor with auth, state/date filtering, bot noise detection, and per-PR cache write
 
 ### Phase 3: Extraction Resilience & Cache
-**Goal**: Extraction survives GitHub rate limits and interrupted runs — already-cached comments are never re-fetched, using PR + comment ID as the immutable dedup key.
+**Goal**: Extraction survives GitHub rate limits and interrupted runs - already-cached comments are never re-fetched, using PR + comment ID as the immutable dedup key.
 **Depends on**: Phase 2
 **Requirements**: CORE-03, CORE-04, CORE-05
 
-**Planning Note**: Cache persistence mechanism (file layout, storage schema) will be decided together with the user during `/gsd:discuss-phase 3` BEFORE implementation begins. Cache invalidation strategy is fixed: PR + comment ID is the immutable key — once a comment is cached it is never re-fetched or re-classified.
+**Planning Note**: Cache persistence mechanism (file layout, storage schema) will be decided together with the user during `/gsd:discuss-phase 3` BEFORE implementation begins. Cache invalidation strategy is fixed: PR + comment ID is the immutable key - once a comment is cached it is never re-fetched or re-classified.
 
 **Success Criteria** (what must be TRUE):
   1. When the GitHub API returns a 429 or rate-limit header, the tool waits with exponential backoff and resumes without losing already-cached data
@@ -72,7 +72,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [x] 03-01-PLAN.md — TDD: rate-limit retry (GithubRetry total=5), atomic cache writes (mkstemp + os.replace), merge-based re-runs (comment ID dedup)
+- [x] 03-01-PLAN.md - TDD: rate-limit retry (GithubRetry total=5), atomic cache writes (mkstemp + os.replace), merge-based re-runs (comment ID dedup)
 
 ### Phase 4: Claude Classifier
 **Goal**: A user can classify cached PR comments into categories using Claude, with results stored locally, and identical comments never sent to the API twice.
@@ -90,8 +90,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [x] 04-01-PLAN.md — ClassifiedComment/ClassifiedFile models, config anthropic_api_key, test scaffolds
-- [x] 04-02-PLAN.md — PRClassifier implementation with SHA-256 dedup, atomic writes, and all tests green
+- [x] 04-01-PLAN.md - ClassifiedComment/ClassifiedFile models, config anthropic_api_key, test scaffolds
+- [x] 04-02-PLAN.md - PRClassifier implementation with SHA-256 dedup, atomic writes, and all tests green
 
 ### Phase 5: KB Generator
 **Goal**: A user can generate an organized markdown knowledge base from classified comments, and re-running generation does not duplicate existing content.
@@ -106,8 +106,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [x] 05-01-PLAN.md — KBGenerator core: slugify, article generation with frontmatter, manifest-based incremental dedup
-- [x] 05-02-PLAN.md — Index generation: kb/INDEX.md with category groupings, counts, summaries, and review markers
+- [x] 05-01-PLAN.md - KBGenerator core: slugify, article generation with frontmatter, manifest-based incremental dedup
+- [x] 05-02-PLAN.md - Index generation: kb/INDEX.md with category groupings, counts, summaries, and review markers
 
 ### Phase 6: CLI Integration
 **Goal**: A user can drive the full extract -> classify -> generate pipeline through named CLI commands with clear help text and actionable error messages.
@@ -123,7 +123,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [x] 06-01-PLAN.md — Click CLI: extract, classify, generate, run commands with lazy imports, colored output, CliRunner tests
+- [x] 06-01-PLAN.md - Click CLI: extract, classify, generate, run commands with lazy imports, colored output, CliRunner tests
 
 ### Phase 7: Fix Article Generation Quality
 **Goal**: Fix misleading output, useless articles (copied comments without processing), and meaningless classification-failed files so the generated KB contains genuinely useful, well-synthesized knowledge articles.
@@ -137,9 +137,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [x] 07-01-PLAN.md — Fix classifier failure handling, extend config with new settings, extend GenerateResult model
-- [x] 07-02-PLAN.md — Replace raw-comment-copy generator with Claude-powered synthesis, add confidence filtering and regeneration
-- [x] 07-03-PLAN.md — Fix CLI output accuracy, add --regenerate flag, API key validation for generate
+- [x] 07-01-PLAN.md - Fix classifier failure handling, extend config with new settings, extend GenerateResult model
+- [x] 07-02-PLAN.md - Replace raw-comment-copy generator with Claude-powered synthesis, add confidence filtering and regeneration
+- [x] 07-03-PLAN.md - Fix CLI output accuracy, add --regenerate flag, API key validation for generate
 
 ### Phase 8: GitHub Action + README
 **Goal**: A repository maintainer can add a provided workflow file and have PR comments automatically extracted after merged PRs or manual recovery runs, with no wasted API calls when nothing is new, and a new user can get from zero to a generated KB by following the README alone.
@@ -154,14 +154,26 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [x] 08-01-PLAN.md — testable action-state helper for no-new-PR guard and cursor decisions
-- [x] 08-02-PLAN.md — merged-PR workflow with dual-mode variable auth, cache reuse, and rolling KB PR publication
-- [x] 08-03-PLAN.md — automation-first README rewrite with PAT quickstart, GitHub App option, and local CLI docs
+- [x] 08-01-PLAN.md - testable action-state helper for no-new-PR guard and cursor decisions
+- [x] 08-02-PLAN.md - merged-PR workflow with dual-mode variable auth, cache reuse, and rolling KB PR publication
+- [x] 08-03-PLAN.md - automation-first README rewrite with PAT quickstart, GitHub App option, and local CLI docs
+
+### Phase 9: Wiki-style KB synthesis - merge related articles into compounding topic pages with cross-references and contradiction detection
+
+**Goal:** The generate command produces topic pages (not per-comment articles) as the primary KB output, grouping related classified comments into synthesized topic pages with inline PR citations, cross-references, and chronological awareness.
+**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08, D-09, D-10, D-11, D-12
+**Depends on:** Phase 8
+**Plans:** 3 plans
+
+Plans:
+- [ ] 09-01-PLAN.md - TopicGroup/TopicPlan models, python-frontmatter dep, nested manifest with auto-migration, topic planning pass
+- [ ] 09-02-PLAN.md - Topic synthesis pass with in-memory articles, inline PR citations, cross-references, broken link stripping
+- [ ] 09-03-PLAN.md - Wire synthesis into generate_all(), --no-synthesize CLI flag, INDEX.md links to topic pages
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -173,3 +185,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 6. CLI Integration | 1/1 | Complete   | 2026-04-06 |
 | 7. Fix Article Generation Quality | 3/3 | Ready for verification | - |
 | 8. GitHub Action + README | 3/3 | Ready for verification | - |
+| 9. Wiki-style KB Synthesis | 0/3 | Planning complete | - |
