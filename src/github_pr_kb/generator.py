@@ -500,31 +500,31 @@ class KBGenerator:
         return "\n".join(lines)
 
     def _parse_article_metadata(self, text: str) -> tuple[dict[str, str] | None, str]:
-        """Parse YAML frontmatter and first # heading from article text."""
-        lines = text.splitlines()
-        if not lines or lines[0].strip() != _FRONTMATTER_DELIMITER:
+        """Parse YAML frontmatter and extract display title from article text.
+
+        Uses python-frontmatter for robust parsing. The display title is taken
+        from the frontmatter 'title' field (topic pages) or falls back to the
+        first '# heading' (legacy per-comment articles).
+        """
+        try:
+            post = frontmatter.loads(text)
+        except Exception:
             return None, ""
 
-        closing_idx: int | None = None
-        for index, line in enumerate(lines[1:], start=1):
-            if line.strip() == _FRONTMATTER_DELIMITER:
-                closing_idx = index
-                break
-
-        if closing_idx is None:
+        if not post.metadata:
             return None, ""
 
-        fields: dict[str, str] = {}
-        for frontmatter_line in lines[1:closing_idx]:
-            if ":" in frontmatter_line:
-                key, _, value = frontmatter_line.partition(":")
-                fields[key.strip()] = value.strip()
+        fields: dict[str, str] = {
+            str(k): str(v) for k, v in post.metadata.items()
+        }
 
-        summary = ""
-        for line in lines[closing_idx + 1:]:
-            if line.startswith("# "):
-                summary = line[2:].strip()
-                break
+        # Prefer frontmatter title; fall back to first # heading
+        summary = fields.get("title", "")
+        if not summary:
+            for line in post.content.splitlines():
+                if line.startswith("# "):
+                    summary = line[2:].strip()
+                    break
 
         return fields, summary
 
@@ -627,11 +627,18 @@ class KBGenerator:
                 comments_manifest[key] = rel_path
                 self._written += 1
 
-    def _run_generation_pass(self) -> None:
-        for classified_path in self._find_classified_files():
-            self._process_classified_file(classified_path)
-        self._save_manifest()
-        self._generate_index()
+    def _run_generation_pass(self, synthesize: bool = True) -> None:
+        if synthesize:
+            result = self._synthesize_topics()
+            self._topics_written = result.topics_written
+            self._topics_skipped = result.topics_skipped
+            self._save_manifest()
+            self._generate_index()
+        else:
+            for classified_path in self._find_classified_files():
+                self._process_classified_file(classified_path)
+            self._save_manifest()
+            self._generate_index()
 
     @staticmethod
     def _sources_hash(article_bodies: list[str]) -> str:
@@ -1005,7 +1012,7 @@ class KBGenerator:
 
         return CROSS_REF_RE.sub(_replace, body)
 
-    def _generate_all_transactionally(self) -> None:
+    def _generate_all_transactionally(self, synthesize: bool = True) -> None:
         live_kb_dir = self._kb_dir
         live_parent = live_kb_dir.parent
         live_parent.mkdir(parents=True, exist_ok=True)
@@ -1024,7 +1031,7 @@ class KBGenerator:
         self._category_slugs = {}
 
         try:
-            self._run_generation_pass()
+            self._run_generation_pass(synthesize=synthesize)
         except Exception:
             self._kb_dir = original_kb_dir
             self._manifest = original_manifest
@@ -1059,8 +1066,12 @@ class KBGenerator:
         self._manifest = self._load_manifest()
         self._category_slugs = {}
 
-    def generate_all(self, regenerate: bool = False) -> GenerateResult:
+    def generate_all(self, regenerate: bool = False, synthesize: bool = True) -> GenerateResult:
         """Generate KB articles from classified cache files.
+
+        When synthesize=True (default), articles are collected in memory and
+        merged into topic pages via Claude. When False, per-comment articles
+        are written individually (legacy behavior).
 
         Prompt, model, and threshold changes only affect already-generated
         articles when regenerate=True.
@@ -1069,16 +1080,20 @@ class KBGenerator:
         self._skipped = 0
         self._filtered = 0
         self._failed = []
+        self._topics_written = 0
+        self._topics_skipped = 0
         self._category_slugs = {}
 
         if regenerate:
-            self._generate_all_transactionally()
+            self._generate_all_transactionally(synthesize=synthesize)
         else:
-            self._run_generation_pass()
+            self._run_generation_pass(synthesize=synthesize)
 
         return GenerateResult(
             written=self._written,
             skipped=self._skipped,
             filtered=self._filtered,
             failed=self._failed,
+            topics_written=self._topics_written,
+            topics_skipped=self._topics_skipped,
         )

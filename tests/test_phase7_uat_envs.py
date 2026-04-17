@@ -74,7 +74,7 @@ def test_run_regenerate_success_scenario(tmp_path: Path) -> None:
     assert "Generated 1 new, 0 skipped, 0 filtered, 0 failed." in result.output
     assert not (env_dir / "kb" / "gotcha" / "old-article.md").exists()
     manifest = json.loads((env_dir / "kb" / ".manifest.json").read_text(encoding="utf-8"))
-    assert manifest == {"3101": "gotcha/new-regenerated-article.md"}
+    assert manifest == {"comments": {"3101": "gotcha/new-regenerated-article.md"}, "topics": {}}
 
 
 def test_run_regenerate_abort_scenario_preserves_existing_kb(tmp_path: Path) -> None:

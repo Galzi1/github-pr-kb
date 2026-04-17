@@ -139,6 +139,8 @@ def test_generate_runs(runner: CliRunner) -> None:
             skipped=2,
             filtered=3,
             failed=[],
+            topics_written=3,
+            topics_skipped=1,
         )
         result = runner.invoke(
             cli,
@@ -148,6 +150,7 @@ def test_generate_runs(runner: CliRunner) -> None:
 
     assert result.exit_code == 0, result.output
     assert "Generated 5 new, 2 skipped, 3 filtered, 0 failed." in result.output
+    assert "Topics: 3 written, 1 unchanged." in result.output
 
 
 def test_generate_regenerate_flag(runner: CliRunner) -> None:
@@ -171,7 +174,7 @@ def test_generate_regenerate_flag(runner: CliRunner) -> None:
         )
 
     assert result.exit_code == 0, result.output
-    instance.generate_all.assert_called_once_with(regenerate=True)
+    instance.generate_all.assert_called_once_with(regenerate=True, synthesize=True)
 
 
 def test_generate_no_classified_input_exit_code(runner: CliRunner) -> None:
@@ -327,7 +330,7 @@ def test_run_pipelines(runner: CliRunner) -> None:
     assert "Extracted" in result.output
     assert "Classified 2 new, 1 cached, 1 need review, 0 failed." in result.output
     assert "Generated 3 new, 0 skipped, 0 filtered, 0 failed." in result.output
-    gen_inst.generate_all.assert_called_once_with(regenerate=False)
+    gen_inst.generate_all.assert_called_once_with(regenerate=False, synthesize=True)
 
 
 def test_run_fails_fast(runner: CliRunner) -> None:
@@ -386,4 +389,94 @@ def test_cli_contract_matches_upstream_interfaces() -> None:
 
     assert "filtered" in GenerateResult.model_fields
     assert "regenerate" in inspect.signature(KBGenerator.generate_all).parameters
+    assert "synthesize" in inspect.signature(KBGenerator.generate_all).parameters
     assert hasattr(PRClassifier, "get_summary_counts")
+
+
+# ---- Phase 09 Plan 03 Task 2: --no-synthesize CLI tests ----
+
+
+def test_generate_help_shows_no_synthesize(runner: CliRunner) -> None:
+    result = runner.invoke(cli, ["generate", "--help"])
+    assert result.exit_code == 0
+    assert "--no-synthesize" in result.output
+
+
+def test_generate_no_synthesize_flag(runner: CliRunner) -> None:
+    from github_pr_kb.generator import GenerateResult
+
+    with (
+        patch("github_pr_kb.generator.DEFAULT_CACHE_DIR", _classified_cache_dir("classified-pr-1.json")),
+        patch("github_pr_kb.generator.KBGenerator") as mock_cls,
+    ):
+        instance = mock_cls.return_value
+        instance.generate_all.return_value = GenerateResult(
+            written=1,
+            skipped=0,
+            filtered=0,
+            failed=[],
+        )
+        result = runner.invoke(
+            cli,
+            ["generate", "--no-synthesize"],
+            env={"GITHUB_TOKEN": "fake", "ANTHROPIC_API_KEY": "fake"},
+        )
+
+    assert result.exit_code == 0, result.output
+    instance.generate_all.assert_called_once_with(regenerate=False, synthesize=False)
+    # No topics line when synthesis is off
+    assert "Topics:" not in result.output
+
+
+def test_generate_no_synthesize_with_regenerate(runner: CliRunner) -> None:
+    from github_pr_kb.generator import GenerateResult
+
+    with (
+        patch("github_pr_kb.generator.DEFAULT_CACHE_DIR", _classified_cache_dir("classified-pr-1.json")),
+        patch("github_pr_kb.generator.KBGenerator") as mock_cls,
+    ):
+        instance = mock_cls.return_value
+        instance.generate_all.return_value = GenerateResult(
+            written=1,
+            skipped=0,
+            filtered=0,
+            failed=[],
+        )
+        result = runner.invoke(
+            cli,
+            ["generate", "--no-synthesize", "--regenerate"],
+            env={"GITHUB_TOKEN": "fake", "ANTHROPIC_API_KEY": "fake"},
+        )
+
+    assert result.exit_code == 0, result.output
+    instance.generate_all.assert_called_once_with(regenerate=True, synthesize=False)
+
+
+def test_generate_default_calls_with_synthesize_true(runner: CliRunner) -> None:
+    from github_pr_kb.generator import GenerateResult
+
+    with (
+        patch("github_pr_kb.generator.DEFAULT_CACHE_DIR", _classified_cache_dir("classified-pr-1.json")),
+        patch("github_pr_kb.generator.KBGenerator") as mock_cls,
+    ):
+        instance = mock_cls.return_value
+        instance.generate_all.return_value = GenerateResult(
+            written=1,
+            skipped=0,
+            filtered=0,
+            failed=[],
+            topics_written=1,
+            topics_skipped=0,
+        )
+        result = runner.invoke(
+            cli,
+            ["generate"],
+            env={"GITHUB_TOKEN": "fake", "ANTHROPIC_API_KEY": "fake"},
+        )
+
+    assert result.exit_code == 0, result.output
+    instance.generate_all.assert_called_once_with(regenerate=False, synthesize=True)
+    assert "Topics: 1 written, 0 unchanged." in result.output
+
+
+# ---- End Phase 09 Plan 03 Task 2 tests ----

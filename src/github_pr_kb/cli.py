@@ -4,7 +4,7 @@ Entry point: github-pr-kb = "github_pr_kb.cli:cli"
 
 All imports of settings, GitHubExtractor, PRClassifier, and KBGenerator
 are lazy (inside function bodies) to prevent import-time ValidationError
-when GITHUB_TOKEN is missing — critical for --help to work without env vars.
+when GITHUB_TOKEN is missing - critical for --help to work without env vars.
 """
 import json
 import logging
@@ -51,7 +51,7 @@ class ConfigurationError(click.ClickException):
 
 
 # ---------------------------------------------------------------------------
-# Private pipeline helpers — shared by individual commands and run
+# Private pipeline helpers - shared by individual commands and run
 # ---------------------------------------------------------------------------
 
 
@@ -105,7 +105,7 @@ def _run_classify() -> str:
     except Exception as exc:
         raise ConfigurationError(str(exc)) from exc
 
-    # Suppress classifier's built-in print_summary() — it uses bare print()
+    # Suppress classifier's built-in print_summary() - it uses bare print()
     # and would duplicate/pollute the CLI's own green summary line.
     classifier.print_summary = lambda: None  # type: ignore[method-assign]
 
@@ -117,7 +117,7 @@ def _run_classify() -> str:
     )
 
 
-def _run_generate(regenerate: bool = False) -> str:
+def _run_generate(regenerate: bool = False, synthesize: bool = True) -> str:
     """Instantiate KBGenerator, run generate_all, return summary string."""
     from github_pr_kb.generator import DEFAULT_CACHE_DIR, KBGenerator
 
@@ -141,7 +141,7 @@ def _run_generate(regenerate: bool = False) -> str:
         raise ConfigurationError(str(exc)) from exc
 
     try:
-        result = generator.generate_all(regenerate=regenerate)
+        result = generator.generate_all(regenerate=regenerate, synthesize=synthesize)
     except Exception as exc:
         raise click.ClickException(f"Generation failed: {exc}") from exc
 
@@ -158,10 +158,16 @@ def _run_generate(regenerate: bool = False) -> str:
             ),
             err=True,
         )
-    return (
+
+    parts = [
         f"Generated {result.written} new, {result.skipped} skipped, "
         f"{result.filtered} filtered, {len(result.failed)} failed."
-    )
+    ]
+    if synthesize:
+        parts.append(
+            f"Topics: {result.topics_written} written, {result.topics_skipped} unchanged."
+        )
+    return " ".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -268,21 +274,27 @@ def classify(verbose: bool) -> None:
     help="Re-synthesize all articles from scratch after prompt/model/threshold changes.",
 )
 @click.option(
+    "--no-synthesize",
+    is_flag=True,
+    help="Skip topic synthesis; produce per-comment articles only.",
+)
+@click.option(
     "-v",
     "--verbose",
     is_flag=True,
     help="Print per-article detail during generation.",
 )
-def generate(regenerate: bool, verbose: bool) -> None:
+def generate(regenerate: bool, no_synthesize: bool, verbose: bool) -> None:
     """Generate markdown knowledge base articles from classified comments.
 
     \b
     Examples:
       github-pr-kb generate
+      github-pr-kb generate --no-synthesize
       github-pr-kb generate --verbose
     """
     _configure_logging(verbose)
-    summary = _run_generate(regenerate=regenerate)
+    summary = _run_generate(regenerate=regenerate, synthesize=not no_synthesize)
     click.echo(click.style(summary, fg="green"))
 
 
@@ -328,7 +340,7 @@ def run(repo: str, verbose: bool) -> None:
 
     # Generate
     try:
-        generate_summary = _run_generate(regenerate=False)
+        generate_summary = _run_generate(regenerate=False, synthesize=True)
     except click.ClickException as exc:
         raise click.ClickException(f"Pipeline failed at generate step: {exc.format_message()}")
     click.echo(click.style(generate_summary, fg="green"))

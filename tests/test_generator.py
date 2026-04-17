@@ -245,7 +245,7 @@ def test_generate_creates_category_subdirs(
 ) -> None:
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
     assert (kb_dir / "gotcha").is_dir()
 
 
@@ -256,7 +256,7 @@ def test_article_written_to_category_subdir(
 ) -> None:
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
     assert (kb_dir / "gotcha" / "avoid-circular-imports-in-middleware.md").exists()
 
 
@@ -267,7 +267,7 @@ def test_article_frontmatter_fields(
 ) -> None:
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
     content = (kb_dir / "gotcha" / "avoid-circular-imports-in-middleware.md").read_text(
         encoding="utf-8"
     )
@@ -293,7 +293,7 @@ def test_diff_hunk_in_review_comment(
 ) -> None:
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
     content = (kb_dir / "gotcha" / "avoid-circular-imports-in-middleware.md").read_text(
         encoding="utf-8"
     )
@@ -308,7 +308,7 @@ def test_no_diff_hunk_for_issue_comment(
 ) -> None:
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_issue_comment_classified, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
     articles = list((kb_dir / "code_pattern").glob("*.md"))
     assert len(articles) == 1
     assert "```" not in articles[0].read_text(encoding="utf-8")
@@ -321,7 +321,7 @@ def test_article_heading_is_summary(
 ) -> None:
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
     content = (kb_dir / "gotcha" / "avoid-circular-imports-in-middleware.md").read_text(
         encoding="utf-8"
     )
@@ -335,7 +335,7 @@ def test_article_body_is_synthesized(
 ) -> None:
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
     content = (kb_dir / "gotcha" / "avoid-circular-imports-in-middleware.md").read_text(
         encoding="utf-8"
     )
@@ -350,7 +350,7 @@ def test_category_sections_in_prompt(
 ) -> None:
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
     prompt = fake_anthropic_client.messages.create.call_args.kwargs["messages"][0]["content"]
     assert "## Symptom" in prompt
     assert "## Root Cause" in prompt
@@ -364,8 +364,8 @@ def test_incremental_no_duplicate(
     fake_anthropic_client: MagicMock,
 ) -> None:
     kb_dir = tmp_path / "kb"
-    result1 = _make_generator(make_classified_file, kb_dir, fake_anthropic_client).generate_all()
-    result2 = _make_generator(make_classified_file, kb_dir, fake_anthropic_client).generate_all()
+    result1 = _make_generator(make_classified_file, kb_dir, fake_anthropic_client).generate_all(synthesize=False)
+    result2 = _make_generator(make_classified_file, kb_dir, fake_anthropic_client).generate_all(synthesize=False)
 
     assert result1.written == 1
     assert result2.written == 0
@@ -384,11 +384,11 @@ def test_incremental_adds_new_articles(
     classified2_backup = cache_dir / "classified-pr-2.json.bak"
     classified2.rename(classified2_backup)
 
-    result1 = _make_generator(cache_dir, kb_dir, fake_anthropic_client).generate_all()
+    result1 = _make_generator(cache_dir, kb_dir, fake_anthropic_client).generate_all(synthesize=False)
     assert result1.written == 1
 
     classified2_backup.rename(classified2)
-    result2 = _make_generator(cache_dir, kb_dir, fake_anthropic_client).generate_all()
+    result2 = _make_generator(cache_dir, kb_dir, fake_anthropic_client).generate_all(synthesize=False)
     assert result2.written == 1
     assert result2.skipped == 1
 
@@ -400,7 +400,7 @@ def test_manifest_written(
 ) -> None:
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
     manifest = json.loads((kb_dir / ".manifest.json").read_text(encoding="utf-8"))
     assert manifest["comments"]["101"] == "gotcha/avoid-circular-imports-in-middleware.md"
 
@@ -414,7 +414,7 @@ def test_generate_result_summary(
 
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    result = gen.generate_all()
+    result = gen.generate_all(synthesize=False)
     assert isinstance(result, GenerateResult)
     assert result.written == 1
     assert result.skipped == 0
@@ -429,7 +429,7 @@ def test_malformed_classified_file(
 ) -> None:
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_malformed_classified, kb_dir, fake_anthropic_client)
-    result = gen.generate_all()
+    result = gen.generate_all(synthesize=False)
     assert len(result.failed) == 1
     assert result.failed[0]["file"] == "classified-pr-99.json"
 
@@ -442,7 +442,7 @@ def test_empty_synthesis_output_skipped(
     kb_dir = tmp_path / "kb"
     fake_anthropic_client.messages.create.return_value = SimpleNamespace(content=[])
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    result = gen.generate_all()
+    result = gen.generate_all(synthesize=False)
 
     assert len(result.failed) == 1
     assert _article_paths(kb_dir) == []
@@ -460,7 +460,7 @@ def test_source_echo_output_skipped(
         "Always copy context before modifying..."
     )
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    result = gen.generate_all()
+    result = gen.generate_all(synthesize=False)
 
     assert len(result.failed) == 1
     assert _article_paths(kb_dir) == []
@@ -482,7 +482,7 @@ def test_low_confidence_filtered(
     )
     kb_dir = tmp_path / "kb"
     gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
-    result = gen.generate_all()
+    result = gen.generate_all(synthesize=False)
 
     assert result.filtered == 1
     assert result.written == 0
@@ -504,7 +504,7 @@ def test_synthesis_failure_skipped(
         body=None,
     )
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    result = gen.generate_all()
+    result = gen.generate_all(synthesize=False)
 
     assert len(result.failed) == 1
     assert _article_paths(kb_dir) == []
@@ -531,7 +531,7 @@ def test_needs_review_in_frontmatter(
     )
     kb_dir = tmp_path / "kb"
     gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
 
     article = next((kb_dir / "gotcha").glob("*.md"))
     assert "needs_review: true" in article.read_text(encoding="utf-8")
@@ -557,7 +557,7 @@ def test_other_category_included(
     )
     kb_dir = tmp_path / "kb"
     gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
 
     assert (kb_dir / "other").is_dir()
     assert len(list((kb_dir / "other").glob("*.md"))) == 1
@@ -570,7 +570,7 @@ def test_index_file_created(
 ) -> None:
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
     assert (kb_dir / "INDEX.md").exists()
 
 
@@ -581,7 +581,7 @@ def test_index_grouped_by_category(
 ) -> None:
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
     assert "## Gotcha (1)" in (kb_dir / "INDEX.md").read_text(encoding="utf-8")
 
 
@@ -604,7 +604,7 @@ def test_index_review_marker(
     )
     kb_dir = tmp_path / "kb"
     gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
 
     content = (kb_dir / "INDEX.md").read_text(encoding="utf-8")
     assert any("[review]" in line for line in content.splitlines())
@@ -617,11 +617,11 @@ def test_index_regenerated_on_rerun(
 ) -> None:
     kb_dir = tmp_path / "kb"
     gen1 = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    gen1.generate_all()
+    gen1.generate_all(synthesize=False)
     content1 = (kb_dir / "INDEX.md").read_text(encoding="utf-8")
 
     gen2 = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    gen2.generate_all()
+    gen2.generate_all(synthesize=False)
     content2 = (kb_dir / "INDEX.md").read_text(encoding="utf-8")
 
     assert content1 == content2
@@ -634,7 +634,7 @@ def test_index_multiple_categories(
 ) -> None:
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_two_classified_files, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
 
     content = (kb_dir / "INDEX.md").read_text(encoding="utf-8")
     assert "## Gotcha (1)" in content
@@ -650,7 +650,7 @@ def test_index_entry_has_summary_and_link(
 
     kb_dir = tmp_path / "kb"
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
 
     content = (kb_dir / "INDEX.md").read_text(encoding="utf-8")
     assert _re.findall(r"^- \[.+\]\(.+/.+\.md\)", content, _re.MULTILINE)
@@ -665,7 +665,7 @@ def test_index_empty_kb(
     kb_dir = tmp_path / "kb"
 
     gen = _make_generator(cache_dir, kb_dir, fake_anthropic_client)
-    gen.generate_all()
+    gen.generate_all(synthesize=False)
 
     content = (kb_dir / "INDEX.md").read_text(encoding="utf-8")
     assert "# Knowledge Base Index" in content
@@ -687,7 +687,7 @@ def test_regenerate_success_replaces_existing_kb(
     (kb_dir / "INDEX.md").write_text("# Old Index\n", encoding="utf-8")
 
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
-    result = gen.generate_all(regenerate=True)
+    result = gen.generate_all(regenerate=True, synthesize=False)
 
     assert result.written == 1
     assert not (kb_dir / "gotcha" / "old-article.md").exists()
@@ -728,7 +728,7 @@ def test_regenerate_abort_preserves_existing_kb(
     monkeypatch.setattr(gen, "_generate_index", explode_during_staging)
 
     with pytest.raises(RuntimeError, match="staged generation failed"):
-        gen.generate_all(regenerate=True)
+        gen.generate_all(regenerate=True, synthesize=False)
 
     assert old_article.exists()
     assert json.loads((kb_dir / ".manifest.json").read_text(encoding="utf-8")) == old_manifest
@@ -854,7 +854,7 @@ def test_generator_uses_configured_min_confidence(
 
     kb_dir = tmp_path / "kb"
     gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
-    result = gen.generate_all()
+    result = gen.generate_all(synthesize=False)
 
     assert gen._min_confidence == pytest.approx(0.65)
     assert result.filtered == 1
@@ -1513,3 +1513,171 @@ def test_strip_broken_links_cross_ref_re_constant_exists() -> None:
 
 
 # ---- End Phase 09 Plan 02 Task 2: _strip_broken_links tests ----
+
+
+# ---- Phase 09 Plan 03 Task 1: generate_all with synthesis tests ----
+
+
+def test_generate_all_with_synthesis_produces_topic_pages(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """generate_all(synthesize=True) produces topic pages, not per-comment articles."""
+    _write_classified_pair(
+        tmp_path,
+        pr_number=1,
+        comment_id=101,
+        category="gotcha",
+        summary="Avoid circular imports",
+    )
+
+    topic_plan_response = _make_topic_plan_response([
+        {"slug": "avoid-circular-imports", "title": "Avoid Circular Imports", "category": "gotcha", "article_keys": ["101"]}
+    ])
+    synthesis_body = "## Symptom\n\nX\n\n## Root Cause\n\nY\n\n## Fix or Workaround\n\nZ"
+    fake_anthropic_client.messages.create.side_effect = [
+        topic_plan_response,
+        _make_synthesis_response(synthesis_body),
+    ]
+
+    kb_dir = tmp_path / "kb"
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    result = gen.generate_all(synthesize=True)
+
+    # Topic page exists
+    assert (kb_dir / "gotcha" / "avoid-circular-imports.md").exists()
+    # No per-comment articles (only topic page + INDEX.md)
+    all_md = [p for p in kb_dir.rglob("*.md") if p.name != "INDEX.md"]
+    assert len(all_md) == 1
+    assert all_md[0].name == "avoid-circular-imports.md"
+    # Result counts
+    assert result.topics_written == 1
+    assert result.topics_skipped == 0
+
+
+def test_generate_all_no_synthesis_writes_per_comment_articles(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """generate_all(synthesize=False) writes per-comment articles (old behavior)."""
+    _write_classified_pair(
+        tmp_path,
+        pr_number=1,
+        comment_id=101,
+        category="gotcha",
+        summary="Avoid circular imports",
+    )
+
+    kb_dir = tmp_path / "kb"
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    result = gen.generate_all(synthesize=False)
+
+    # Per-comment article exists
+    articles = _article_paths(kb_dir)
+    assert len(articles) >= 1
+    # Topics not written in non-synthesis mode
+    assert result.topics_written == 0
+    assert result.topics_skipped == 0
+    assert result.written == 1
+
+
+def test_generate_all_default_synthesize_true(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """generate_all() defaults to synthesize=True."""
+    import inspect
+
+    from github_pr_kb.generator import KBGenerator
+
+    sig = inspect.signature(KBGenerator.generate_all)
+    assert sig.parameters["synthesize"].default is True
+
+
+def test_generate_all_with_synthesis_creates_index(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """generate_all(synthesize=True) generates INDEX.md with topic page titles."""
+    _write_classified_pair(
+        tmp_path,
+        pr_number=1,
+        comment_id=101,
+        category="gotcha",
+        summary="Avoid circular imports",
+    )
+
+    topic_plan_response = _make_topic_plan_response([
+        {"slug": "avoid-circular-imports", "title": "Avoid Circular Imports", "category": "gotcha", "article_keys": ["101"]}
+    ])
+    synthesis_body = "## Symptom\n\nX\n\n## Root Cause\n\nY\n\n## Fix or Workaround\n\nZ"
+    fake_anthropic_client.messages.create.side_effect = [
+        topic_plan_response,
+        _make_synthesis_response(synthesis_body),
+    ]
+
+    kb_dir = tmp_path / "kb"
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    gen.generate_all(synthesize=True)
+
+    index = (kb_dir / "INDEX.md").read_text(encoding="utf-8")
+    assert "Gotcha" in index
+    # Title from frontmatter used as display text
+    assert "Avoid Circular Imports" in index
+
+
+def test_generate_all_regenerate_with_synthesis(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """generate_all(regenerate=True, synthesize=True) does transactional rebuild with synthesis."""
+    _write_classified_pair(
+        tmp_path,
+        pr_number=1,
+        comment_id=101,
+        category="gotcha",
+        summary="Avoid circular imports",
+    )
+
+    topic_plan_response = _make_topic_plan_response([
+        {"slug": "avoid-circular-imports", "title": "Avoid Circular Imports", "category": "gotcha", "article_keys": ["101"]}
+    ])
+    synthesis_body = "## Symptom\n\nX\n\n## Root Cause\n\nY\n\n## Fix or Workaround\n\nZ"
+    fake_anthropic_client.messages.create.side_effect = [
+        topic_plan_response,
+        _make_synthesis_response(synthesis_body),
+    ]
+
+    kb_dir = tmp_path / "kb"
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    result = gen.generate_all(regenerate=True, synthesize=True)
+
+    assert (kb_dir / "gotcha" / "avoid-circular-imports.md").exists()
+    assert result.topics_written == 1
+
+
+def test_index_uses_frontmatter_title_for_topic_pages(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """INDEX.md uses title from topic page frontmatter as display text (per D-12)."""
+    import frontmatter
+
+    kb_dir = tmp_path / "kb"
+    (kb_dir / "gotcha").mkdir(parents=True)
+
+    # Write a topic page with frontmatter
+    post = frontmatter.Post(
+        "## Symptom\n\nSome content",
+        title="My Custom Title",
+        category="gotcha",
+        last_updated="2026-01-01T00:00:00Z",
+        needs_review=False,
+    )
+    (kb_dir / "gotcha" / "my-topic.md").write_text(
+        frontmatter.dumps(post), encoding="utf-8"
+    )
+
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    gen._generate_index()
+
+    index = (kb_dir / "INDEX.md").read_text(encoding="utf-8")
+    assert "My Custom Title" in index
+    assert "gotcha/my-topic.md" in index
+
+
+# ---- End Phase 09 Plan 03 Task 1 tests ----
