@@ -76,6 +76,10 @@ TOPIC_SYNTHESIS_SYSTEM_PROMPT = (
     "Output ONLY the article body using the provided section headings."
 )
 
+# Matches relative cross-reference links: [display text](../category/slug.md)
+# External links (http://, https://) are intentionally excluded from this pattern.
+CROSS_REF_RE = re.compile(r"\[([^\]]+)\]\((\.\./[^)]+\.md)\)")
+
 
 class IndexEntry(NamedTuple):
     stem: str
@@ -990,7 +994,16 @@ class KBGenerator:
         replaced with just the display text.
         External links (https://, http://) are never touched.
         """
-        return body
+        def _replace(match: re.Match) -> str:
+            display_text = match.group(1)
+            rel_path = match.group(2)  # e.g. ../category/slug.md
+            # Strip the leading ../ and trailing .md to get category/slug
+            slug_key = rel_path.removeprefix("../").removesuffix(".md")
+            if slug_key in valid_slugs:
+                return match.group(0)  # keep valid link intact
+            return display_text  # strip broken link to plain text
+
+        return CROSS_REF_RE.sub(_replace, body)
 
     def _generate_all_transactionally(self) -> None:
         live_kb_dir = self._kb_dir

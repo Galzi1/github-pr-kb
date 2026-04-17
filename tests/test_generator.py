@@ -1411,3 +1411,105 @@ def test_generate_result_topics_fields_default_zero() -> None:
 
 
 # ---- End Phase 09 Plan 02 Task 1: Topic synthesis tests ----
+
+
+# ---- Phase 09 Plan 02 Task 2: _strip_broken_links tests ----
+
+
+def test_strip_broken_links_valid_link_preserved(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """A valid cross-ref link is preserved when the slug exists in known_slugs."""
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client)
+    valid_slugs = {"code_pattern/retry-with-backoff"}
+    body = "See [Retry Pattern](../code_pattern/retry-with-backoff.md) for details."
+    result = gen._strip_broken_links(body, valid_slugs)
+    assert "[Retry Pattern](../code_pattern/retry-with-backoff.md)" in result
+
+
+def test_strip_broken_links_broken_link_stripped_to_plain_text(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """A broken cross-ref link is converted to plain text, keeping display text."""
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client)
+    valid_slugs: set[str] = set()
+    body = "See [Missing Topic](../gotcha/nonexistent.md) for details."
+    result = gen._strip_broken_links(body, valid_slugs)
+    assert "[Missing Topic](../gotcha/nonexistent.md)" not in result
+    assert "Missing Topic" in result
+    assert "(../gotcha/nonexistent.md)" not in result
+
+
+def test_strip_broken_links_external_url_untouched(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """Non-cross-ref links (external URLs) are left untouched."""
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client)
+    valid_slugs: set[str] = set()
+    body = "See [Python docs](https://docs.python.org/3/) for reference."
+    result = gen._strip_broken_links(body, valid_slugs)
+    assert "[Python docs](https://docs.python.org/3/)" in result
+
+
+def test_strip_broken_links_multiple_broken_links_all_stripped(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """Multiple broken links in the same body are all stripped."""
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client)
+    valid_slugs: set[str] = set()
+    body = (
+        "See [Topic A](../gotcha/topic-a.md) and "
+        "[Topic B](../code_pattern/topic-b.md) for more info."
+    )
+    result = gen._strip_broken_links(body, valid_slugs)
+    assert "(../gotcha/topic-a.md)" not in result
+    assert "(../code_pattern/topic-b.md)" not in result
+    assert "Topic A" in result
+    assert "Topic B" in result
+
+
+def test_strip_broken_links_called_after_build_topic_page(
+    tmp_path: Path, fake_anthropic_client: MagicMock
+) -> None:
+    """_strip_broken_links is called in _synthesize_topics after _build_topic_page."""
+    from unittest.mock import patch
+
+    _write_classified_pair(
+        tmp_path,
+        pr_number=1,
+        comment_id=101,
+        category="gotcha",
+        summary="Avoid circular imports",
+    )
+
+    topic_plan_response = _make_topic_plan_response([
+        {
+            "slug": "avoid-circular-imports",
+            "title": "Avoid Circular Imports",
+            "category": "gotcha",
+            "article_keys": ["101"],
+        }
+    ])
+    synthesis_body = (
+        "## Symptom\n\nX\n\n## Root Cause\n\nY\n\n## Fix or Workaround\n\nZ"
+    )
+    fake_anthropic_client.messages.create.side_effect = [
+        topic_plan_response,
+        _make_synthesis_response(synthesis_body),
+    ]
+
+    kb_dir = tmp_path / "kb"
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+
+    with patch.object(gen, "_strip_broken_links", wraps=gen._strip_broken_links) as mock_strip:
+        gen._synthesize_topics()
+        assert mock_strip.called
+
+
+def test_strip_broken_links_cross_ref_re_constant_exists() -> None:
+    """CROSS_REF_RE constant exists in generator module."""
+    from github_pr_kb import generator
+    assert hasattr(generator, "CROSS_REF_RE")
+
+
+# ---- End Phase 09 Plan 02 Task 2: _strip_broken_links tests ----
