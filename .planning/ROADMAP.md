@@ -2,9 +2,7 @@
 
 ## Overview
 
-Eight phases build the tool from scratch: a Python project foundation using uv, then a GitHub extractor delivering basic auth and filtered fetching, then extraction resilience with rate-limit backoff and idempotent caching, then a Claude-powered classifier with cost controls, then a markdown KB generator with idempotent merging, then the CLI surface that ties all three together, and finally a GitHub Action with README for automation and hand-off.
-
-Storage format decisions (DB type, schema, cache mechanism) for Phases 2, 3, and 4 are deferred to the `/gsd:discuss-phase` session for each phase, before any implementation begins.
+Nine phases build the tool from scratch: a Python project foundation using uv, then a GitHub extractor delivering basic auth and filtered fetching, then extraction resilience with rate-limit backoff and idempotent caching, then a Claude-powered classifier with cost controls, then a markdown KB generator with idempotent merging, then the CLI surface that ties all three together, a GitHub Action with README for automation and hand-off, and finally wiki-style topic synthesis that merges related articles into compounding topic pages.
 
 ## Phases
 
@@ -20,8 +18,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Claude Classifier** - classification, confidence scoring, and cost caching (completed 2026-04-05)
 - [x] **Phase 5: KB Generator** - markdown files with frontmatter, index file, and incremental merge (completed 2026-04-06)
 - [x] **Phase 6: CLI Integration** - Click commands with --help and actionable error messages (completed 2026-04-06)
-- [ ] **Phase 7: Fix Article Generation Quality** - fix misleading output, useless articles, and meaningless classification-failed files
-- [ ] **Phase 8: GitHub Action + README** - workflow YAML, cost guard, state persistence, and README
+- [x] **Phase 7: Fix Article Generation Quality** - fix misleading output, useless articles, and meaningless classification-failed files
+- [x] **Phase 8: GitHub Action + README** - workflow YAML, cost guard, state persistence, and README
+- [ ] **Phase 9: Wiki-style KB Synthesis** - topic pages with cross-references and chronological awareness
 
 ## Phase Details
 
@@ -183,6 +182,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 4. Claude Classifier | 2/2 | Complete   | 2026-04-05 |
 | 5. KB Generator | 2/2 | Complete   | 2026-04-06 |
 | 6. CLI Integration | 1/1 | Complete   | 2026-04-06 |
-| 7. Fix Article Generation Quality | 3/3 | Ready for verification | - |
-| 8. GitHub Action + README | 3/3 | Ready for verification | - |
+| 7. Fix Article Generation Quality | 3/3 | Complete | 2026-04-08 |
+| 8. GitHub Action + README | 3/3 | Complete | 2026-04-14 |
 | 9. Wiki-style KB Synthesis | 0/3 | Planning complete | - |

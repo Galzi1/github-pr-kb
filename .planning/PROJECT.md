@@ -23,23 +23,23 @@ Preserve and make discoverable the architectural decisions, code patterns, gotch
 
 ### Validated
 
-- [x] Extract PR comments from a GitHub repository via API — Validated in Phase 02: GitHub Extraction Core
-- [x] Authenticated access via PAT (GITHUB_TOKEN) — Validated in Phase 02: GitHub Extraction Core
-- [x] Classify comments into topics using AI (architecture decisions, code patterns, gotchas, domain knowledge) — Validated in Phase 04: Claude Classifier
-- [x] Generate markdown files organized by topic — Validated in Phase 05: KB Generator
-- [x] Create an index file that summarizes the content in each topic file — Validated in Phase 05: KB Generator
+- [x] Extract PR comments from a GitHub repository via API - Validated in Phase 02: GitHub Extraction Core
+- [x] Authenticated access via PAT (GITHUB_TOKEN) - Validated in Phase 02: GitHub Extraction Core
+- [x] Classify comments into topics using AI (architecture decisions, code patterns, gotchas, domain knowledge) - Validated in Phase 04: Claude Classifier
+- [x] Generate markdown files organized by topic - Validated in Phase 05: KB Generator
+- [x] Create an index file that summarizes the content in each topic file - Validated in Phase 05: KB Generator
 
 ### Active
 
-- [ ] CLI tool for manual extraction of specific PRs
-- [ ] GitHub Action for automated extraction workflow
+- [x] CLI tool for manual extraction of specific PRs - Validated in Phase 06: CLI Integration
+- [x] GitHub Action for automated extraction workflow - Validated in Phase 08: GitHub Action + README
 
 ### Out of Scope
 
-- Multi-repository extraction in v1 — Single repo focus first
-- Complex manual tagging UI — AI classification is sufficient for MVP
-- Real-time extraction — Batch processing acceptable for v1
-- Web interface — CLI and GitHub Action cover the use cases
+- Multi-repository extraction in v1 - Single repo focus first
+- Complex manual tagging UI - AI classification is sufficient for MVP
+- Real-time extraction - Batch processing acceptable for v1
+- Web interface - CLI and GitHub Action cover the use cases
 
 ## Context
 
@@ -56,19 +56,19 @@ Preserve and make discoverable the architectural decisions, code patterns, gotch
 
 ## Constraints
 
-- **Tech stack**: Python — Good GitHub API libraries, easy scripting
-- **Platform**: GitHub — Tool specifically for GitHub PRs
-- **Output format**: Markdown — Human-readable and AI-agent-friendly
+- **Tech stack**: Python - Good GitHub API libraries, easy scripting
+- **Platform**: GitHub - Tool specifically for GitHub PRs
+- **Output format**: Markdown - Human-readable and AI-agent-friendly
 - **Scope**: Single repository at a time for MVP
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| AI-based topic classification | More flexible than keyword matching, less overhead than manual tagging | — Pending |
-| Both CLI and GitHub Action | Manual for targeted extraction, automation for keeping KB current | — Pending |
-| Python implementation | Strong GitHub API ecosystem, familiar for scripting tasks | — Pending |
-| Single repo scope for v1 | Simpler to build and test, can expand later if needed | — Pending |
+| AI-based topic classification | More flexible than keyword matching, less overhead than manual tagging | Implemented (Phase 4) |
+| Both CLI and GitHub Action | Manual for targeted extraction, automation for keeping KB current | Implemented (Phases 6, 8) |
+| Python implementation | Strong GitHub API ecosystem, familiar for scripting tasks | Implemented |
+| Single repo scope for v1 | Simpler to build and test, can expand later if needed | Implemented |
 
 ---
-*Last updated: 2026-04-06 — Phase 06 complete: CLI Integration implemented (Click group with extract, classify, generate, run commands; lazy imports for env-var safety; colored summaries; actionable error messages; 12 CliRunner tests)*
+*Last updated: 2026-04-17 - Phase 08 complete, Phase 09 planned (3 plans). All core v1.0 features implemented. Phase 9 adds wiki-style topic synthesis.*
