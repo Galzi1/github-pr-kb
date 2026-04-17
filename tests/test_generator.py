@@ -402,7 +402,7 @@ def test_manifest_written(
     gen = _make_generator(make_classified_file, kb_dir, fake_anthropic_client)
     gen.generate_all()
     manifest = json.loads((kb_dir / ".manifest.json").read_text(encoding="utf-8"))
-    assert manifest["101"] == "gotcha/avoid-circular-imports-in-middleware.md"
+    assert manifest["comments"]["101"] == "gotcha/avoid-circular-imports-in-middleware.md"
 
 
 def test_generate_result_summary(
@@ -447,7 +447,7 @@ def test_empty_synthesis_output_skipped(
     assert len(result.failed) == 1
     assert _article_paths(kb_dir) == []
     manifest = json.loads((kb_dir / ".manifest.json").read_text(encoding="utf-8"))
-    assert "101" not in manifest
+    assert "101" not in manifest["comments"]
 
 
 def test_source_echo_output_skipped(
@@ -465,7 +465,7 @@ def test_source_echo_output_skipped(
     assert len(result.failed) == 1
     assert _article_paths(kb_dir) == []
     manifest = json.loads((kb_dir / ".manifest.json").read_text(encoding="utf-8"))
-    assert "101" not in manifest
+    assert "101" not in manifest["comments"]
 
 
 def test_low_confidence_filtered(
@@ -488,7 +488,7 @@ def test_low_confidence_filtered(
     assert result.written == 0
     assert _article_paths(kb_dir) == []
     manifest = json.loads((kb_dir / ".manifest.json").read_text(encoding="utf-8"))
-    assert "301" not in manifest
+    assert "301" not in manifest["comments"]
     fake_anthropic_client.messages.create.assert_not_called()
 
 
@@ -509,7 +509,7 @@ def test_synthesis_failure_skipped(
     assert len(result.failed) == 1
     assert _article_paths(kb_dir) == []
     manifest = json.loads((kb_dir / ".manifest.json").read_text(encoding="utf-8"))
-    assert "101" not in manifest
+    assert "101" not in manifest["comments"]
 
 
 def test_needs_review_in_frontmatter(
@@ -693,7 +693,8 @@ def test_regenerate_success_replaces_existing_kb(
     assert not (kb_dir / "gotcha" / "old-article.md").exists()
     assert (kb_dir / "gotcha" / "avoid-circular-imports-in-middleware.md").exists()
     manifest = json.loads((kb_dir / ".manifest.json").read_text(encoding="utf-8"))
-    assert manifest == {"101": "gotcha/avoid-circular-imports-in-middleware.md"}
+    assert manifest["comments"] == {"101": "gotcha/avoid-circular-imports-in-middleware.md"}
+    assert manifest["topics"] == {}
     assert "Avoid circular imports in middleware" in (kb_dir / "INDEX.md").read_text(
         encoding="utf-8"
     )
@@ -859,3 +860,113 @@ def test_generator_uses_configured_min_confidence(
     assert result.filtered == 1
     assert result.written == 0
     fake_anthropic_client.messages.create.assert_not_called()
+
+
+# ---- Phase 09 Plan 01: Manifest migration + topic planning tests ----
+
+
+def test_manifest_migration(tmp_path: Path, fake_anthropic_client: MagicMock) -> None:
+    """Old flat manifest {comment_id: path} is auto-migrated to nested format."""
+    kb_dir = tmp_path / "kb"
+    kb_dir.mkdir()
+    (kb_dir / ".manifest.json").write_text(
+        json.dumps({"101": "gotcha/slug.md"}),
+        encoding="utf-8",
+    )
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    assert gen._manifest == {"comments": {"101": "gotcha/slug.md"}, "topics": {}}
+
+
+def test_manifest_new_format(tmp_path: Path, fake_anthropic_client: MagicMock) -> None:
+    """Nested manifest loads without migration."""
+    kb_dir = tmp_path / "kb"
+    kb_dir.mkdir()
+    nested = {"comments": {"202": "code_pattern/di.md"}, "topics": {"di-topic": {"sources": ["202"]}}}
+    (kb_dir / ".manifest.json").write_text(json.dumps(nested), encoding="utf-8")
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    assert gen._manifest["comments"] == {"202": "code_pattern/di.md"}
+    assert "di-topic" in gen._manifest["topics"]
+
+
+def test_manifest_save_roundtrip(tmp_path: Path, fake_anthropic_client: MagicMock) -> None:
+    """Save then load preserves nested structure."""
+    kb_dir = tmp_path / "kb"
+    kb_dir.mkdir()
+    gen = _make_generator(tmp_path, kb_dir, fake_anthropic_client)
+    gen._manifest = {"comments": {"303": "gotcha/my-article.md"}, "topics": {}}
+    gen._save_manifest()
+    loaded = json.loads((kb_dir / ".manifest.json").read_text(encoding="utf-8"))
+    assert loaded == {"comments": {"303": "gotcha/my-article.md"}, "topics": {}}
+
+
+def test_sources_hash_consistent(tmp_path: Path, fake_anthropic_client: MagicMock) -> None:
+    """_sources_hash returns consistent SHA-256 hex digest."""
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client)
+    h1 = gen._sources_hash(["body one", "body two"])
+    h2 = gen._sources_hash(["body one", "body two"])
+    assert h1 == h2
+    assert len(h1) == 64  # SHA-256 hex is 64 chars
+
+
+def test_sources_hash_order_independent(tmp_path: Path, fake_anthropic_client: MagicMock) -> None:
+    """_sources_hash is order-independent (sorted)."""
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client)
+    h1 = gen._sources_hash(["alpha", "beta"])
+    h2 = gen._sources_hash(["beta", "alpha"])
+    assert h1 == h2
+
+
+def test_plan_topics_returns_topic_plan(tmp_path: Path, fake_anthropic_client: MagicMock) -> None:
+    """_plan_topics() calls Claude and returns a valid TopicPlan."""
+    from github_pr_kb.models import TopicPlan
+
+    valid_response = json.dumps({
+        "topics": [
+            {
+                "slug": "avoid-circular-imports",
+                "title": "Avoid Circular Imports",
+                "category": "gotcha",
+                "article_keys": ["101"],
+            }
+        ]
+    })
+    fake_anthropic_client.messages.create.return_value = SimpleNamespace(
+        content=[SimpleNamespace(type="text", text=valid_response)]
+    )
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client)
+    article_summaries = [
+        {"key": "101", "category": "gotcha", "summary": "Avoid circular imports", "pr_title": "Fix middleware"},
+    ]
+    result = gen._plan_topics(article_summaries)
+    assert isinstance(result, TopicPlan)
+    assert len(result.topics) == 1
+    assert result.topics[0].slug == "avoid-circular-imports"
+
+
+def test_plan_topics_single_source(tmp_path: Path, fake_anthropic_client: MagicMock) -> None:
+    """An article with no grouping partner becomes a single-source TopicGroup."""
+    from github_pr_kb.models import TopicPlan
+
+    valid_response = json.dumps({
+        "topics": [
+            {
+                "slug": "di-pattern",
+                "title": "Dependency Injection Pattern",
+                "category": "code_pattern",
+                "article_keys": ["202"],
+            }
+        ]
+    })
+    fake_anthropic_client.messages.create.return_value = SimpleNamespace(
+        content=[SimpleNamespace(type="text", text=valid_response)]
+    )
+    gen = _make_generator(tmp_path, tmp_path / "kb", fake_anthropic_client)
+    article_summaries = [
+        {"key": "202", "category": "code_pattern", "summary": "Use DI pattern", "pr_title": "Refactor services"},
+    ]
+    result = gen._plan_topics(article_summaries)
+    assert isinstance(result, TopicPlan)
+    assert result.topics[0].article_keys == ["202"]
+
+
+# ---- End Phase 09 Plan 01: Manifest migration + topic planning tests ----

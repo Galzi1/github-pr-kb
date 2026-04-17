@@ -7,6 +7,7 @@ subdirectories, and maintains a manifest for incremental dedup.
 
 import contextlib
 import difflib
+import hashlib
 import json
 import logging
 import os
@@ -27,6 +28,7 @@ from github_pr_kb.models import (
     CommentRecord,
     PRFile,
     PRRecord,
+    TopicPlan,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,6 +54,13 @@ SYNTHESIS_SYSTEM_PROMPT = (
     "If a required section is unsupported, write 'Not stated in the source comment.' "
     "Paraphrase faithfully; do not quote or copy long spans from the source comment. "
     "Output ONLY the article body using the provided markdown section headings."
+)
+
+TOPIC_PLAN_SYSTEM_PROMPT = (
+    "You are organizing a knowledge base extracted from GitHub PR discussions. "
+    "Group related articles into topics. Each topic should be a single concept "
+    "that multiple PR discussions contribute to. "
+    "Return JSON only."
 )
 
 
@@ -184,24 +193,33 @@ class KBGenerator:
                 )
             self._client = Anthropic(api_key=resolved_api_key, max_retries=2)
 
-        self._manifest: dict[str, str] = self._load_manifest()
+        self._manifest: dict[str, dict] = self._load_manifest()
         self._category_slugs: dict[str, set[str]] = {}
         self._written = 0
         self._skipped = 0
         self._filtered = 0
         self._failed: list[dict[str, str]] = []
 
-    def _load_manifest(self) -> dict[str, str]:
-        """Load kb/.manifest.json; keys are str(comment_id), values are relative paths."""
+    def _load_manifest(self) -> dict[str, dict]:
+        """Load kb/.manifest.json in nested format, auto-migrating flat (legacy) format.
+
+        Nested format: {"comments": {str(comment_id): "category/slug.md"}, "topics": {...}}
+        Flat (legacy) format: {str(comment_id): "category/slug.md"} - no "comments" key.
+        """
         path = self._kb_dir / ".manifest.json"
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            raw: dict = json.loads(path.read_text(encoding="utf-8"))
         except FileNotFoundError:
-            logger.warning("No manifest found at %s — starting fresh", path)
-            return {}
+            logger.warning("No manifest found at %s - starting fresh", path)
+            return {"comments": {}, "topics": {}}
         except json.JSONDecodeError:
-            logger.warning("kb/.manifest.json is corrupt — rebuilding from scratch")
-            return {}
+            logger.warning("kb/.manifest.json is corrupt - rebuilding from scratch")
+            return {"comments": {}, "topics": {}}
+
+        if "comments" not in raw:
+            logger.info("Migrating flat manifest to nested format")
+            return {"comments": raw, "topics": {}}
+        return raw
 
     def _save_manifest(self) -> None:
         self._kb_dir.mkdir(parents=True, exist_ok=True)
@@ -237,7 +255,7 @@ class KBGenerator:
     def _slugs_from_manifest(self, category: str) -> set[str]:
         return {
             rel.split("/")[1].removesuffix(".md")
-            for rel in self._manifest.values()
+            for rel in self._manifest["comments"].values()
             if rel.startswith(f"{category}/") and rel.count("/") == 1
         }
 
@@ -392,7 +410,7 @@ class KBGenerator:
                 rel_path = md_file.relative_to(self._kb_dir)
             except ValueError:
                 logger.warning(
-                    "Article %s is outside kb_dir %s — skipping",
+                    "Article %s is outside kb_dir %s - skipping",
                     md_file,
                     self._kb_dir,
                 )
@@ -400,7 +418,7 @@ class KBGenerator:
 
             if len(rel_path.parts) != 2:
                 logger.debug(
-                    "Skipping %s — not at expected category/article.md depth",
+                    "Skipping %s - not at expected category/article.md depth",
                     rel_path,
                 )
                 continue
@@ -411,7 +429,7 @@ class KBGenerator:
                 text = md_file.read_text(encoding="utf-8")
             except OSError as exc:
                 logger.warning(
-                    "Could not read article %s for index: %s — skipping",
+                    "Could not read article %s for index: %s - skipping",
                     md_file.name,
                     exc,
                 )
@@ -420,7 +438,7 @@ class KBGenerator:
             frontmatter_fields, summary = self._parse_article_metadata(text)
             if frontmatter_fields is None:
                 logger.warning(
-                    "Could not parse frontmatter in %s — skipping from index",
+                    "Could not parse frontmatter in %s - skipping from index",
                     md_file.name,
                 )
                 continue
@@ -525,7 +543,7 @@ class KBGenerator:
             )
         except (OSError, ValidationError, json.JSONDecodeError) as exc:
             logger.warning(
-                "Could not parse classified file %s: %s — skipping",
+                "Could not parse classified file %s: %s - skipping",
                 classified_path.name,
                 exc,
             )
@@ -542,7 +560,7 @@ class KBGenerator:
             pr_file = PRFile.model_validate_json(pr_path.read_text(encoding="utf-8"))
         except (OSError, ValidationError, json.JSONDecodeError) as exc:
             logger.warning(
-                "Could not load PR file pr-%d.json: %s — skipping classified file %s",
+                "Could not load PR file pr-%d.json: %s - skipping classified file %s",
                 pr_number,
                 exc,
                 classified_path.name,
@@ -558,10 +576,12 @@ class KBGenerator:
             comment.comment_id: comment for comment in pr_file.comments
         }
 
+        comments_manifest = self._manifest["comments"]
+
         for classification in classified_file.classifications:
             key = str(classification.comment_id)
 
-            if key in self._manifest:
+            if key in comments_manifest:
                 self._skipped += 1
                 continue
 
@@ -572,7 +592,7 @@ class KBGenerator:
             comment = comments_by_id.get(classification.comment_id)
             if comment is None:
                 logger.warning(
-                    "Comment %d not found in pr-%d.json — skipping",
+                    "Comment %d not found in pr-%d.json - skipping",
                     classification.comment_id,
                     pr_number,
                 )
@@ -585,7 +605,7 @@ class KBGenerator:
 
             rel_path = self._write_article(classified_file.pr, comment, classification)
             if rel_path is not None:
-                self._manifest[key] = rel_path
+                comments_manifest[key] = rel_path
                 self._written += 1
 
     def _run_generation_pass(self) -> None:
@@ -593,6 +613,60 @@ class KBGenerator:
             self._process_classified_file(classified_path)
         self._save_manifest()
         self._generate_index()
+
+    @staticmethod
+    def _sources_hash(article_bodies: list[str]) -> str:
+        """Return a deterministic SHA-256 hex digest of the given article bodies.
+
+        Order-independent: bodies are sorted before hashing so that the same set
+        of articles always produces the same hash regardless of input order.
+        """
+        combined = "\n---\n".join(sorted(article_bodies))
+        return hashlib.sha256(combined.encode("utf-8")).hexdigest()
+
+    def _plan_topics(self, article_summaries: list[dict[str, str]]) -> TopicPlan:
+        """Call Claude to group per-comment articles into topic clusters.
+
+        Args:
+            article_summaries: list of dicts with keys:
+                "key" (str comment_id), "category", "summary", "pr_title"
+
+        Returns:
+            TopicPlan with one TopicGroup per identified topic.
+        """
+        lines = ["Group these KB articles into topics. Return a JSON object with a 'topics' array.", ""]
+        for item in article_summaries:
+            lines.append(
+                f"- key={item['key']} category={item['category']} "
+                f"pr_title={item['pr_title']!r} summary={item['summary']!r}"
+            )
+        lines.append("")
+        lines.append(
+            "Each topic object must have: slug (str), title (str), "
+            "category (one of: architecture_decision, code_pattern, gotcha, domain_knowledge, other), "
+            "article_keys (list of key strings)."
+        )
+        user_prompt = "\n".join(lines)
+
+        response = self._client.messages.create(
+            model=self._model,
+            max_tokens=2000,
+            system=TOPIC_PLAN_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+
+        raw_text = self._extract_synthesized_body(response) or ""
+        try:
+            data = json.loads(raw_text)
+        except json.JSONDecodeError as exc:
+            logger.warning("_plan_topics: Claude returned non-JSON response: %s", exc)
+            raise
+
+        try:
+            return TopicPlan.model_validate(data)
+        except ValidationError as exc:
+            logger.warning("_plan_topics: TopicPlan validation failed: %s", exc)
+            raise
 
     def _generate_all_transactionally(self) -> None:
         live_kb_dir = self._kb_dir
@@ -609,7 +683,7 @@ class KBGenerator:
         backup_dir: Path | None = None
 
         self._kb_dir = stage_dir
-        self._manifest = {}
+        self._manifest = {"comments": {}, "topics": {}}
         self._category_slugs = {}
 
         try:
