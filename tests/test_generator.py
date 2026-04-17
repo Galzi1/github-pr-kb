@@ -775,6 +775,55 @@ def test_generator_uses_configured_generate_model(
     assert gen._model == "claude-sonnet-test"
 
 
+# ---- Phase 09 Plan 01: Topic models tests ----
+
+
+def test_topic_group_valid() -> None:
+    from github_pr_kb.models import TopicGroup
+
+    tg = TopicGroup(slug="avoid-circular-imports", title="Avoid Circular Imports", category="gotcha", article_keys=["101", "202"])
+    assert tg.slug == "avoid-circular-imports"
+    assert tg.title == "Avoid Circular Imports"
+    assert tg.category == "gotcha"
+    assert tg.article_keys == ["101", "202"]
+
+
+def test_topic_plan_valid() -> None:
+    from github_pr_kb.models import TopicGroup, TopicPlan
+
+    tg = TopicGroup(slug="di-pattern", title="DI Pattern", category="code_pattern", article_keys=["303"])
+    tp = TopicPlan(topics=[tg])
+    assert len(tp.topics) == 1
+    assert tp.topics[0].slug == "di-pattern"
+
+
+def test_topic_group_rejects_invalid_category() -> None:
+    from pydantic import ValidationError
+
+    from github_pr_kb.models import TopicGroup
+
+    with pytest.raises(ValidationError):
+        TopicGroup(slug="foo", title="Foo", category="invalid_category", article_keys=[])
+
+
+def test_topic_group_empty_article_keys_valid() -> None:
+    from github_pr_kb.models import TopicGroup
+
+    tg = TopicGroup(slug="future-topic", title="Future Topic", category="domain_knowledge", article_keys=[])
+    assert tg.article_keys == []
+
+
+def test_topic_group_config_dict_ignores_extra() -> None:
+    from github_pr_kb.models import TopicGroup
+
+    # extra="ignore" - unknown fields should be silently dropped
+    tg = TopicGroup(slug="s", title="T", category="other", article_keys=[], unknown_field="x")  # type: ignore[call-arg]
+    assert not hasattr(tg, "unknown_field")
+
+
+# ---- End Phase 09 Plan 01: Topic models tests ----
+
+
 def test_generator_uses_configured_min_confidence(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

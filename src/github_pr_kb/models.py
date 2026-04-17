@@ -16,7 +16,7 @@ class CommentRecord(BaseModel):
     url: str
     file_path: Optional[str] = None  # review comments only (per D-07)
     diff_hunk: Optional[str] = None  # review comments only (per D-07)
-    reactions: dict[str, int] = {}  # safe in Pydantic v2 — model __init__ deep-copies defaults (per A1)
+    reactions: dict[str, int] = {}  # safe in Pydantic v2 - model __init__ deep-copies defaults (per A1)
 
 
 class PRRecord(BaseModel):
@@ -61,3 +61,21 @@ class ClassifiedFile(BaseModel):
     pr: PRRecord
     classifications: list[ClassifiedComment]
     classified_at: datetime
+
+
+# Phase 9: Topic synthesis models (D-07, D-08, D-09)
+
+
+class TopicGroup(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    slug: str
+    title: str
+    category: CategoryLiteral
+    article_keys: list[str]  # comment_ids as strings
+
+
+class TopicPlan(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    topics: list[TopicGroup]
