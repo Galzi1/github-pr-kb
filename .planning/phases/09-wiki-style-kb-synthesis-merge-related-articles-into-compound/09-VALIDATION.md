@@ -2,8 +2,8 @@
 phase: 9
 slug: wiki-style-kb-synthesis-merge-related-articles-into-compound
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-04-16
 ---
 
@@ -38,12 +38,12 @@ created: 2026-04-16
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 09-01-01 | 01 | 1 | D-08 | - | N/A | unit | `.venv/Scripts/python.exe -m pytest tests/ -k "manifest"` | ❌ W0 | ⬜ pending |
-| 09-01-02 | 01 | 1 | D-09 | - | N/A | unit | `.venv/Scripts/python.exe -m pytest tests/ -k "migration"` | ❌ W0 | ⬜ pending |
-| 09-02-01 | 02 | 1 | D-05, D-06 | - | N/A | unit | `.venv/Scripts/python.exe -m pytest tests/ -k "topic_plan"` | ❌ W0 | ⬜ pending |
-| 09-02-02 | 02 | 1 | D-01, D-02 | - | N/A | unit | `.venv/Scripts/python.exe -m pytest tests/ -k "synthesize"` | ❌ W0 | ⬜ pending |
-| 09-03-01 | 03 | 2 | D-10, D-11 | - | N/A | unit | `.venv/Scripts/python.exe -m pytest tests/ -k "cross_ref"` | ❌ W0 | ⬜ pending |
-| 09-03-02 | 03 | 2 | D-12 | - | N/A | unit | `.venv/Scripts/python.exe -m pytest tests/ -k "index"` | ❌ W0 | ⬜ pending |
+| 09-01-01 | 01 | 1 | D-07, D-08 | - | N/A | unit | `.venv/Scripts/python.exe -m pytest tests/test_generator.py -x -q --no-cov -k "topic_group or topic_plan"` | ✅ | ⬜ pending |
+| 09-01-02 | 01 | 1 | D-08, D-09 | - | N/A | unit | `.venv/Scripts/python.exe -m pytest tests/test_generator.py -x -q --no-cov -k "manifest_migration or manifest_new or plan_topics or sources_hash"` | ✅ | ⬜ pending |
+| 09-02-01 | 02 | 2 | D-01, D-02, D-03, D-04, D-06, D-10 | - | N/A | unit | `.venv/Scripts/python.exe -m pytest tests/test_generator.py -x -q --no-cov -k "synthesize_topic or collect_in_memory or build_topic or topic_page"` | ✅ | ⬜ pending |
+| 09-02-02 | 02 | 2 | D-11 | - | N/A | unit | `.venv/Scripts/python.exe -m pytest tests/test_generator.py -x -q --no-cov -k "strip_broken_link"` | ✅ | ⬜ pending |
+| 09-03-01 | 03 | 3 | D-05, D-12 | - | N/A | unit | `.venv/Scripts/python.exe -m pytest tests/test_generator.py -x -q --no-cov -k "generate_all_with_synthesis or generate_all_no_synthesis or index_topic_pages"` | ✅ | ⬜ pending |
+| 09-03-02 | 03 | 3 | D-05 | - | N/A | unit | `.venv/Scripts/python.exe -m pytest tests/test_cli.py -x -q --no-cov -k "no_synthesize or generate"` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -51,10 +51,9 @@ created: 2026-04-16
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_topic_synthesis.py` - stubs for D-01 through D-07 (topic planning and synthesis)
-- [ ] `tests/test_manifest_v2.py` - stubs for D-08, D-09 (manifest format and migration)
-- [ ] `tests/test_cross_references.py` - stubs for D-10, D-11 (cross-ref generation and validation)
-- [ ] `tests/test_index_topics.py` - stubs for D-12 (index generation with topic pages)
+Existing infrastructure covers all phase requirements. Tests are added to existing files:
+- [x] `tests/test_generator.py` - topic models, manifest migration, synthesis, cross-refs, index (D-01 through D-12)
+- [x] `tests/test_cli.py` - `--no-synthesize` flag (D-05)
 
 ---
 
