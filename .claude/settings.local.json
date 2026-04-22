@@ -25,7 +25,13 @@
       "Bash(rtk ls:*)",
       "Bash(gh --version)",
       "Bash(rm:*)",
-      "mcp__plugin_context7_context7__query-docs"
+      "mcp__plugin_context7_context7__query-docs",
+      "WebFetch(domain:gist.github.com)",
+      "Skill(gsd-research-phase)",
+      "WebFetch(domain:levelup.gitconnected.com)",
+      "Skill(gsd-code-review)",
+      "Bash(cmd *)",
+      "PowerShell(Test-Path *)"
     ]
   },
   "enabledPlugins": {

@@ -165,9 +165,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 09-01-PLAN.md - TopicGroup/TopicPlan models, python-frontmatter dep, nested manifest with auto-migration, topic planning pass
-- [ ] 09-02-PLAN.md - Topic synthesis pass with in-memory articles, inline PR citations, cross-references, broken link stripping
-- [ ] 09-03-PLAN.md - Wire synthesis into generate_all(), --no-synthesize CLI flag, INDEX.md links to topic pages
+- [x] 09-01-PLAN.md - TopicGroup/TopicPlan models, python-frontmatter dep, nested manifest with auto-migration, topic planning pass
+- [x] 09-02-PLAN.md - Topic synthesis pass with in-memory articles, inline PR citations, cross-references, broken link stripping
+- [x] 09-03-PLAN.md - Wire synthesis into generate_all(), --no-synthesize CLI flag, INDEX.md links to topic pages
 
 ## Progress
 
